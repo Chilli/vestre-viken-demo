@@ -452,7 +452,7 @@ def analyze_candidates_for_shift(sick_name, shift_type, use_deepseek=False, api_
     sickleave_violation = [p for p in db if "Sykemeldt siste 6 måneder" in (p.get("exclusion_reason") or "")]
     analysis.append(f"❌ Utelukket {len(sickleave_violation)} ansatte: Sykemeldt siste 6m (AML).")
 
-    working = [p for p in db if p.get("exclusion_reason", "").startswith("Har allerede")]
+    working = [p for p in db if (p.get("exclusion_reason") or "").startswith("Har allerede")]
     analysis.append(f"❌ Utelukket {len(working)} ansatte: Har allerede vakt (kollisjon).")
 
     # 2. Finn kvalifiserte kandidater
