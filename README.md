@@ -10,40 +10,17 @@ En moderne, sanntidsbasert demo for Vestre Viken som viser hvordan en intelligen
 
 Denne løsningen krever **ingen** tredjeparts SMS/Tale-leverandører og kjører 100% via web!
 
-## 🛠️ Forutsetninger
+## 🚀 Slik kjører du demoen (Live fra skyen)
 
-- Python 3.8+
-- [ngrok](https://ngrok.com) installert (`brew install ngrok`)
+Applikasjonen din kjører nå live på internett døgnet rundt! Du trenger verken terminal eller ngrok lenger.
 
-## ⚙️ Oppsett
-
-### 1. Installer avhengigheter
-
-```bash
-cd vestre-viken-demo
-pip install -r requirements.txt
-```
-
-### 2. Start serveren
-
-**Terminal 1 - Flask:**
-```bash
-python main.py
-```
-
-**Terminal 2 - ngrok (Valgfritt, men nødvendig for at publikum skal nå appen via 4G):**
-```bash
-ngrok http 5000
-```
-Kopier ngrok-URLen (f.eks. `https://abc123.ngrok.io`).
-
-## 🎬 Demo-flyt (Slik gjennomfører du presentasjonen)
+Alt du trenger er å bruke disse lenkene:
 
 ### 1. Forberedelser før publikum kommer
-* Åpne **Storskjermen** (Koble PC-en til projektor) og gå til: `http://localhost:5000/live`
-* Åpne **Admin-panelet** (Skjult på din egen PC-skjerm): `http://localhost:5000/admin`
-* Lag en QR-kode (bruk f.eks qr-code-generator.com) som peker til: `https://[din-ngrok-url]/app`
-* Legg denne QR-koden i en PowerPoint-slide.
+* Åpne **Storskjermen** (Koble PC-en til projektor) og gå til: `https://vestre-viken-demo.onrender.com/live`
+* Åpne **Admin-panelet** (Skjult på din egen PC-skjerm/iPad): `https://vestre-viken-demo.onrender.com/admin`
+* Lag en QR-kode (bruk f.eks qr-code-generator.com) som peker til: `https://vestre-viken-demo.onrender.com/app`
+* Legg denne QR-koden i en PowerPoint-slide for publikum.
 
 ### 2. Selve presentasjonen
 1. **Onboarding:** Be sjefene scanne QR-koden med mobilen sin. 

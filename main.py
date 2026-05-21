@@ -315,15 +315,15 @@ def print_startup_info():
   Slik kjører du presentasjonen:
 
   1. STORSKJERM (Projektor):
-     Åpne: http://localhost:5000/live
+     Åpne: https://vestre-viken-demo.onrender.com/live
 
   2. PUBLIKUM (Mobiler):
-     La publikum scanne en QR-kode (eller gå til) din ngrok-URL:
-     👉 https://din-ngrok-url.ngrok.io/app
+     La publikum scanne en QR-kode (eller gå til) denne URLen:
+     👉 https://vestre-viken-demo.onrender.com/app
 
   3. DU (Skjult på din PC):
      Åpne Admin-panelet for å utløse krisen:
-     👉 http://localhost:5000/admin
+     👉 https://vestre-viken-demo.onrender.com/admin
 
 {'='*60}
 """)
