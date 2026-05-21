@@ -4,15 +4,13 @@
 
 import os
 import sys
-import threading
 from flask import Flask, request, jsonify, render_template_string, redirect, url_for
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from turnus_manager import load_or_create_turnus, create_turnus_excel, mark_sick, mark_replacement
+from state import state, mark_sick, mark_replacement, reset_turnus
 from web_dashboard import render_live_dashboard
-from state import state
 
 app = Flask(__name__)
 PORT = 5000
@@ -77,12 +75,11 @@ def admin_trigger():
     """Utløser sykdomsalarmen!"""
     state["shift_request"]["active"] = True
     state["shift_request"]["sick_name"] = "Nils Dagenderpå"
-    state["shift_request"]["shift_type"] = "Dagvakt 08:00-20:00"
+    state["shift_request"]["shift_type"] = "DAG 08-20"
     state["shift_request"]["winner_name"] = None
     
-    # Oppdater Excel
-    turnus_path = load_or_create_turnus()
-    mark_sick(turnus_path, "Nils Dagenderpå")
+    # Oppdater minne-databasen
+    mark_sick("Nils Dagenderpå")
     
     return redirect(url_for('admin_panel'))
 
@@ -93,7 +90,7 @@ def admin_reset():
     state["shift_request"]["sick_name"] = None
     state["shift_request"]["winner_name"] = None
     state["colleagues"] = set()
-    create_turnus_excel() # Resetter Excel filen helt
+    reset_turnus()
     return redirect(url_for('admin_panel'))
 
 
@@ -273,15 +270,14 @@ def api_accept():
     # Førstemann til mølla sjekk
     if state["shift_request"]["active"] and state["shift_request"]["winner_name"] is None:
         # VI HAR EN VINNER!
-        state["shift_request"]["winner_name"] = name
         state["shift_request"]["active"] = False
         sick_name = state["shift_request"]["sick_name"]
         
         print(f"\n🎉 VAKT DEKKET: {name} var raskest!")
         
-        # Oppdater Excel Live
-        turnus_path = load_or_create_turnus()
-        mark_replacement(turnus_path, sick_name, name)
+        # Oppdater minne-databasen (den returnerer det normaliserte navnet)
+        actual_name = mark_replacement(sick_name, name)
+        state["shift_request"]["winner_name"] = actual_name
         
         return jsonify({"success": True, "winner": True})
         
@@ -330,5 +326,5 @@ def print_startup_info():
 
 if __name__ == '__main__':
     print_startup_info()
-    load_or_create_turnus()
+    reset_turnus()
     app.run(host='0.0.0.0', port=PORT, debug=False)

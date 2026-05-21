@@ -1,12 +1,10 @@
 """
 Web Dashboard for live-visning av turnusplanen.
-Leser direkte fra Excel-filen og viser den som HTML.
+Leser direkte fra minne-databasen (state.py) og viser som HTML.
 """
 
 from flask import render_template_string
-from openpyxl import load_workbook
-import os
-from turnus_manager import EXCEL_FILE, get_dates_for_week
+from state import state
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -173,37 +171,26 @@ def get_css_class(val):
         return "vakt-fri"
     return ""
 
-from turnus_manager import load_or_create_turnus
 
 def render_live_dashboard():
-    """Leser Excel-fila og bygger HTML."""
-    path = load_or_create_turnus()
-        
-    wb = load_workbook(path, data_only=True)
-    ws = wb.active
+    """Bygger HTML direkte fra den minne-baserte turnusen."""
     
-    # Hent headers (rad 2, kolonne B til F)
-    dates = get_dates_for_week()
+    # Bygg headers (Mandag Dato, osv)
     days = ["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag"]
-    headers = [f"{day}\\n{date}" for day, date in zip(days, dates)]
+    headers = [f"{day}\\n{date}" for day, date in zip(days, state["turnus"]["dates"])]
     
-    # Hent rad-data (fra rad 3 til vi treffer tom eller forklaring)
+    # Bygg rader
     rows = []
-    for row_idx in range(3, 15):
-        name_cell = ws.cell(row=row_idx, column=1).value
-        if not name_cell or str(name_cell).startswith("📋"):
-            break
-            
+    for r in state["turnus"]["rows"]:
         cells = []
-        for col_idx in range(2, 7): # Kolonne B(2) til F(6)
-            val = ws.cell(row=row_idx, column=col_idx).value or ""
+        for val in r["shifts"]:
             cells.append({
                 "value": val,
                 "css_class": get_css_class(val)
             })
             
         rows.append({
-            "name": name_cell,
+            "name": r["name"],
             "cells": cells
         })
         
