@@ -134,28 +134,34 @@ def admin_panel():
 @app.route('/admin/trigger', methods=['POST'])
 def admin_trigger():
     """Utløser sykdomsalarmen!"""
-    state["shift_request"]["active"] = True
-    state["shift_request"]["sick_name"] = "Nils Dagenderpå"
-    state["shift_request"]["shift_type"] = "DAG 08-20"
-    state["shift_request"]["winner_name"] = None
+    try:
+        state["shift_request"]["active"] = True
+        state["shift_request"]["sick_name"] = "Nils Dagenderpå"
+        state["shift_request"]["shift_type"] = "DAG 08-20"
+        state["shift_request"]["winner_name"] = None
 
-    # Sjekk om DeepSeek er aktivert
-    use_deepseek = state.get("ai_mode") == "live"
-    api_key = state.get("deepseek_api_key") if use_deepseek else None
+        # Sjekk om DeepSeek er aktivert
+        use_deepseek = state.get("ai_mode") == "live"
+        api_key = state.get("deepseek_api_key") if use_deepseek else None
 
-    # Kjør smart matching (Agenten tenker) - med eller uten DeepSeek
-    analysis_log = analyze_candidates_for_shift(
-        "Nils Dagenderpå",
-        "DAG 08-20",
-        use_deepseek=use_deepseek,
-        api_key=api_key
-    )
-    state["shift_request"]["agent_analysis"] = analysis_log
+        # Kjør smart matching (Agenten tenker) - med eller uten DeepSeek
+        analysis_log = analyze_candidates_for_shift(
+            "Nils Dagenderpå",
+            "DAG 08-20",
+            use_deepseek=use_deepseek,
+            api_key=api_key
+        )
+        state["shift_request"]["agent_analysis"] = analysis_log
 
-    # Oppdater minne-databasen
-    mark_sick("Nils Dagenderpå")
+        # Oppdater minne-databasen
+        mark_sick("Nils Dagenderpå")
 
-    return redirect(url_for('admin_panel'))
+        return redirect(url_for('admin_panel'))
+    except Exception as e:
+        import traceback
+        error_msg = f"ERROR: {str(e)}\n{traceback.format_exc()}"
+        print(error_msg)
+        return f"<h1>Server Error</h1><pre>{error_msg}</pre>", 500
 
 @app.route('/admin/reset', methods=['POST'])
 def admin_reset():
