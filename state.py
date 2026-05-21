@@ -432,76 +432,177 @@ def analyze_candidates_for_shift(sick_name, shift_type, use_deepseek=False, api_
         except Exception as e:
             pass  # Fall gjennom til simulert
 
-    # SIMULERT AI ANALYSE
+    # SIMULERT AI ANALYSE - PROFESJONELL/LOGG FORMAT
     analysis = []
-    analysis.append(f"⚡ SIMULERT AI: Starter analyse av {total} ansatte for akutt '{shift_type}'-dekning...")
-    analysis.append(f"   (Inkluderer {len(state.get('profiles', {}))} deltakere med egne variabler)")
+    analysis.append(f"=" * 60)
+    analysis.append(f"VURDERINGSRAPPORT - Akutt vaktdekning: {shift_type}")
+    analysis.append(f"Tidspunkt: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}")
+    analysis.append(f"Analyse av {total} ansatte i database")
+    if state.get("profiles"):
+        analysis.append(f"Inkluderer {len(state['profiles'])} eksterne deltakere")
+    analysis.append(f"=" * 60)
+    analysis.append("")
 
-    # 1. Filtreringsregler - telling
+    # 1. KATEGORI: KOMPETANSEVURDERING
+    analysis.append("[1] KOMPETANSEVURDERING")
+    analysis.append("-" * 40)
+    for p in db:
+        role = p.get("role", "Ukjent")
+        name = p["name"]
+        if role == "Intensivsykepleier":
+            analysis.append(f"  ✓ {name:<25} | Godkjent ({role})")
+        elif role in ["Sykepleier", "Vernepleier"]:
+            reason = p.get("exclusion_reason", "Feil spesialisering")
+            analysis.append(f"  ✗ {name:<25} | AVVIST ({role}) - {reason}")
+        else:
+            analysis.append(f"  ✗ {name:<25} | AVVIST (Mangler autorisasjon)")
     wrong_comp = [p for p in db if p.get("role") != "Intensivsykepleier"]
-    analysis.append(f"❌ Utelukket {len(wrong_comp)} ansatte: Feil kompetanse/mangler autorisasjon.")
+    analysis.append(f"\nOppsummering: {len(wrong_comp)} av {total} mangler påkrevd kompetanse")
+    analysis.append("")
 
-    leave = [p for p in db if p.get("status") in ["FERIE", "PERMISJON", "SYKT BARN", "SYK"]]
-    analysis.append(f"❌ Utelukket {len(leave)} ansatte: Lovfestet fravær (Ferie/Permisjon/Sykdom).")
+    # 2. KATEGORI: ARBEIDSMILJØLOVEN (HVILEREGLER)
+    analysis.append("[2] ARBEIDSMILJØLOVEN - Hvileregel 11 timer")
+    analysis.append("-" * 40)
+    rest_violation = []
+    for p in db:
+        if p.get("role") == "Intensivsykepleier":
+            name = p["name"]
+            last_shift = p.get("last_shift", "none")
+            excl = p.get("exclusion_reason", "")
+            if "11-timers" in excl or "6 timer" in excl or "9 timer" in excl:
+                analysis.append(f"  ✗ {name:<25} | AVVIST - {excl}")
+                rest_violation.append(p)
+            elif last_shift == "recent":
+                analysis.append(f"  ✗ {name:<25} | AVVIST - Kun 6t siden forrige vakt")
+                rest_violation.append(p)
+            elif last_shift == "yesterday":
+                analysis.append(f"  ✗ {name:<25} | AVVIST - Kun 9t siden forrige vakt")
+                rest_violation.append(p)
+            else:
+                analysis.append(f"  ✓ {name:<25} | OK (Tilstrekkelig hviletid)")
+    analysis.append(f"\nOppsummering: {len(rest_violation)} har brutt 11-timers regelen")
+    analysis.append("")
 
-    # 11-timers hvileregel (brudd)
-    rest_violation = [p for p in db if "11-timers" in (p.get("exclusion_reason") or "")]
-    analysis.append(f"❌ Utelukket {len(rest_violation)} ansatte: Brudd på 11-timers hvileregel.")
+    # 3. KATEGORI: SYKEMELDINGSHISTORIKK
+    analysis.append("[3] SYKEMELDINGSHISTORIKK (siste 6 måneder)")
+    analysis.append("-" * 40)
+    sickleave_violation = []
+    for p in db:
+        if p.get("role") == "Intensivsykepleier" and not any(x in (p.get("exclusion_reason") or "") for x in ["11-timers", "allerede"]):
+            name = p["name"]
+            sickleave = p.get("sickleave", "none")
+            excl = p.get("exclusion_reason", "")
+            if "Sykemeldt siste 6 måneder" in excl or sickleave == "under6m":
+                analysis.append(f"  ✗ {name:<25} | AVVIST - Sykemeldt siste 6m (AML §10-4)")
+                sickleave_violation.append(p)
+            else:
+                analysis.append(f"  ✓ {name:<25} | OK (Ingen sykemelding <6m)")
+    analysis.append(f"\nOppsummering: {len(sickleave_violation)} har sykemelding <6m")
+    analysis.append("")
 
-    # Sykemelding siste 6m
-    sickleave_violation = [p for p in db if "Sykemeldt siste 6 måneder" in (p.get("exclusion_reason") or "")]
-    analysis.append(f"❌ Utelukket {len(sickleave_violation)} ansatte: Sykemeldt siste 6m (AML).")
+    # 4. KATEGORI: FRAVÆR OG LEDIGHET
+    analysis.append("[4] FRAVÆRSSTATUS OG LEDIGHET")
+    analysis.append("-" * 40)
+    leave = []
+    working = []
+    for p in db:
+        name = p["name"]
+        status = p.get("status", "Ukjent")
+        excl = p.get("exclusion_reason", "")
+        
+        if status in ["FERIE", "PERMISJON", "SYKT BARN", "SYK"]:
+            leave.append(p)
+            if status == "FERIE":
+                analysis.append(f"  ✗ {name:<25} | AVVIST - Ferieavvikling")
+            elif status == "PERMISJON":
+                analysis.append(f"  ✗ {name:<25} | AVVIST - Foreldrepermisjon")
+            elif status == "SYKT BARN":
+                analysis.append(f"  ✗ {name:<25} | AVVIST - Hjemme med sykt barn")
+            elif status == "SYK":
+                analysis.append(f"  ✗ {name:<25} | AVVIST - Sykemeldt")
+        elif "Har allerede vakt" in excl:
+            working.append(p)
+            analysis.append(f"  ✗ {name:<25} | AVVIST - Har vakt i dag ({excl})")
+        elif status == "AVAILABLE":
+            # Sjekk turnus for i dag
+            shifts = p.get("shifts", [])
+            day_idx = datetime.now().weekday()
+            if day_idx > 4:
+                day_idx = 0
+            today_shift = shifts[day_idx] if shifts else "Ukjent"
+            if "LEDIG" in today_shift or "FRI" in today_shift:
+                analysis.append(f"  ✓ {name:<25} | LEDIG - {today_shift}")
+            else:
+                analysis.append(f"  ~ {name:<25} | Har vakt: {today_shift}")
+        else:
+            analysis.append(f"  ? {name:<25} | Status: {status}")
+    
+    analysis.append(f"\nOppsummering:")
+    analysis.append(f"  - {len(leave)} har lovfestet fravær")
+    analysis.append(f"  - {len(working)} har allerede vakt i dag")
+    analysis.append("")
 
-    working = [p for p in db if (p.get("exclusion_reason") or "").startswith("Har allerede")]
-    analysis.append(f"❌ Utelukket {len(working)} ansatte: Har allerede vakt (kollisjon).")
-
-    # 2. Finn kvalifiserte kandidater
+    # 5. FINN KVALIFISERTE KANDIDATER
+    analysis.append("[5] KVALIFISERTE KANDIDATER")
+    analysis.append("=" * 60)
+    
     candidates = [p for p in db if p.get("status") == "AVAILABLE"
                   and p.get("role") == "Intensivsykepleier"
                   and not p.get("exclusion_reason")]
-    # Ingen prioritet basert på stillingsprosent - førstemann til mølla
-    candidate_names = [c["name"] for c in candidates]
-
-    # 3. ESKALERING: Hvis ingen kandidater, kontakt bemanningsbyrå
+    
     if not candidates:
-        analysis.append(f"")
-        analysis.append(f"⚠️  INGEN KVALIFISERTE KANDIDATER FUNNET I LOKAL DATABASE!")
-        analysis.append(f"📞 ESKALERER: Ringer bemanningsbyrå...")
-
-        # Generer en vikar fra byrå
-        agency_name = f"Vikar fra Byrå ({datetime.now().strftime('%H:%M')})"
+        analysis.append("INGEN KVALIFISERTE KANDIDATER FUNNET I INTERNT SYSTEM")
+        analysis.append("")
+        analysis.append("ESKALERING: Kontakt ekstern ressurs...")
+        
+        # Generer vikar fra byrå
+        agency_name = f"Vikar fra Bemanningsbyrå (tlf: {datetime.now().strftime('%H:%M')})"
         agency_worker = {
             "name": agency_name,
             "role": "Intensivsykepleier",
             "status": "AVAILABLE",
-            "shifts": ["FRI", "FRI", "FRI", "FRI", "FRI"],
+            "shifts": ["LEDIG", "LEDIG", "LEDIG", "LEDIG", "LEDIG"],
             "exclusion_reason": None,
             "from_agency": True
         }
-
-        # Legg til i database
         state["turnus"]["rows"].append(agency_worker)
         candidate_names = [agency_name]
-
-        analysis.append(f"✅ Bemanningsbyrå sendte vikar: {agency_name}")
-        analysis.append(f"   Kompetanse: Intensivsykepleier (verifisert)")
-        analysis.append(f"   Tilgjengelighet: Umiddelbar")
-
-        # Marker at eskalering skjedde
+        
+        analysis.append(f"  → {agency_name}")
+        analysis.append(f"    Kompetanse: Intensivsykepleier (verifisert)")
+        analysis.append(f"    Tilgjengelighet: Umiddelbar")
+        analysis.append(f"    Godkjent av: Systemadministrator")
+        analysis.append("")
+        
         state["shift_request"]["escalation_triggered"] = True
         state["shift_request"]["agency_worker"] = agency_name
-
-        analysis.append(f"")
-        analysis.append(f"📱 Ringer vikar fra bemanningsbyrå...")
+        analysis.append("VALG: Ekstern vikar tildelt vakten")
     else:
-        analysis.append(f"")
-        analysis.append(f"✅ FANT {len(candidates)} KVALIFISERTE KANDIDATER.")
-        analysis.append(f"📊 Kandidater (førstemann til mølla):")
-        for i, c in enumerate(candidates):
-            analysis.append(f"   {i+1}. {c['name']}")
+        analysis.append(f"ANTALL KVALIFISERTE: {len(candidates)}")
+        analysis.append("")
+        for i, c in enumerate(candidates, 1):
+            shifts = c.get("shifts", [])
+            day_idx = datetime.now().weekday()
+            if day_idx > 4:
+                day_idx = 0
+            today = shifts[day_idx] if shifts else "LEDIG"
+            
+            # Sjekk om deltaker
+            is_participant = c.get("from_participant", False)
+            marker = "[DELTAKER]" if is_participant else "[INTERN]"
+            analysis.append(f"  {i}. {c['name']:<25} {marker}")
+            analysis.append(f"     Status: LEDIG ({today})")
+            if c.get("priority_note"):
+                analysis.append(f"     Notat: {c['priority_note']}")
+        analysis.append("")
+        analysis.append(f"TILDELING: Førstemann til mølla-prinsipp aktivert")
+        analysis.append(f"Kontakter: {candidates[0]['name']}")
+        candidate_names = [c["name"] for c in candidates]
 
-        analysis.append(f"")
-        analysis.append(f"📱 Ringer Kandidat 1: {candidates[0]['name']}...")
+    analysis.append("")
+    analysis.append("=" * 60)
+    analysis.append("Analyse fullført. Vaktdeking pågår.")
+    analysis.append("=" * 60)
 
     # Lagre køen i state
     state["shift_request"]["candidate_queue"] = candidate_names
