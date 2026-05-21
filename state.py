@@ -86,6 +86,7 @@ state = {
     },
     
     "colleagues": set(),
+    "profiles": {},  # Deltaker-profiler (navn -> {rolle, %, status, ...})
 
     "turnus": {
         "dates": get_dates_for_week(),
@@ -196,72 +197,184 @@ Analyser listen og returner JSON med:
         return analysis, []
 
 
+def build_database_from_profiles():
+    """Bygger dynamisk database fra deltaker-profiler + fyller på med fiktive folk."""
+    profiles = state.get("profiles", {})
+
+    # Start med den syke personen
+    db = [
+        {"name": "Nils Dagenderpå", "role": "Intensivsykepleier", "contract": 100, "status": "OK",
+         "shifts": ["DAG 08-20", "NATT 20-08", "FRI", "DAG 08-20", "DAG 08-20"]}
+    ]
+
+    # Legg til deltakere som har registrert seg
+    for name, profile in profiles.items():
+        # Bygg exclusion_reason basert på profilen
+        exclusion_reason = None
+        if profile.get("has_shift", False):
+            exclusion_reason = "Har allerede vakt i dag"
+        elif profile.get("status") == "FERIE":
+            exclusion_reason = "Ferieavvikling"
+        elif profile.get("status") == "PERMISJON":
+            exclusion_reason = "I foreldrepermisjon"
+        elif profile.get("status") in ["SYKT BARN", "SYK"]:
+            exclusion_reason = "Egenmelding/Sykt barn"
+        elif profile.get("contract", 0) >= 100:
+            exclusion_reason = "Overstiger 100% (Arbeidsmiljøloven)"
+        elif profile.get("role") != "Intensivsykepleier":
+            exclusion_reason = "Feil kompetanse"
+
+        person = {
+            "name": name,
+            "role": profile.get("role", "Sykepleier"),
+            "contract": profile.get("contract", 100),
+            "status": profile.get("status", "AVAILABLE"),
+            "shifts": ["FRI", "FRI", "FRI", "FRI", "FRI"],  # Standard ledig
+            "exclusion_reason": exclusion_reason
+        }
+        db.append(person)
+
+    # Fyll på med fiktive folk hvis få deltakere
+    existing_names = {p["name"] for p in db}
+    filler_names = [
+        "Kari Vaktmester", "Ole Tidsklemme", "Lise Trøtt", "Bernt Overtid",
+        "Siri Småbarnsmor", "Jonas Helse", "Nina Turnus", "Per Kaffe",
+        "Trude Nattevakt", "Simen Stress", "Anne Vikar", "Petter Gips"
+    ]
+
+    for name in filler_names:
+        if name not in existing_names:
+            # Lag tilfeldig profil for fyllere
+            reasons = [
+                ("Overstiger 100% (Arbeidsmiljøloven)", 100, "OK", ["DAG 08-20"] * 5),
+                ("Brudd på 11-timers hviletid", 80, "OK", ["NATT 20-08", "FRI", "DAG 08-20", "FRI", "DAG 08-20"]),
+                ("I foreldrepermisjon", 100, "PERMISJON", ["PERMISJON"] * 5),
+                ("Ferieavvikling", 100, "FERIE", ["FERIE"] * 5),
+                ("Feil kompetanse (Hjelpepleier)", 80, "OK", ["FRI"] * 5),
+                ("Egenmelding Sykt Barn", 80, "SYKT BARN", ["SYKT BARN"] * 5),
+                ("Har allerede vakt i dag", 80, "OK", ["KVELD 14-22", "FRI", "FRI", "DAG 08-20", "DAG 08-20"])
+            ]
+            reason, contract, status, shifts = random.choice(reasons)
+            role = "Hjelpepleier" if "kompetanse" in reason else "Sykepleier"
+
+            db.append({
+                "name": name,
+                "role": role,
+                "contract": contract,
+                "status": status,
+                "shifts": shifts,
+                "exclusion_reason": reason
+            })
+
+    return db
+
+
 def analyze_candidates_for_shift(sick_name, shift_type, use_deepseek=False, api_key=None):
     """
     Kjernen i demoen: Agenten analyserer ansatte.
-    Hvis use_deepseek=True og api_key, bruker ekte DeepSeek AI.
-    Ellers: simulert analyse.
+    Bygger dynamisk database fra deltaker-profiler.
+    Hvis ingen kandidater -> escalation til bemanningsbyrå.
     """
-    total = len(state["turnus"]["rows"])
-    db = state["turnus"]["rows"]
-    
-    # PRØV DEEPSEEK FØRST HVIS AKTIVERT
+    # BYGG DYNAMISK DATABASE fra deltaker-profiler
+    db = build_database_from_profiles()
+    total = len(db)
+
+    # Oppdater state med ny database
+    state["turnus"]["rows"] = db
+
+    # Reset escalation-state
+    state["shift_request"]["escalation_triggered"] = False
+    state["shift_request"]["agency_worker"] = None
+
+    # PRØV DEEPSEEK HVIS AKTIVERT
     if use_deepseek and api_key:
         try:
             analysis, candidate_names = analyze_with_deepseek(sick_name, shift_type, db, api_key)
-            
-            # Hvis DeepSeek returnerte kandidater, bruk dem
+
             if candidate_names:
                 state["shift_request"]["candidate_queue"] = candidate_names
                 state["shift_request"]["current_candidate_index"] = 0
                 state["shift_request"]["candidate_start_time"] = datetime.now().timestamp()
-                
+
                 analysis.append("")
-                analysis.append(f"� Ringer Kandidat 1: {candidate_names[0]}...")
+                analysis.append(f"📱 Ringer Kandidat 1: {candidate_names[0]}...")
                 return analysis
-            # Hvis tom liste, fall gjennom til simulert
         except Exception as e:
-            # Fortsett til simulert
-            pass
-    
-    # SIMULERT AI (fallback eller standard)
+            pass  # Fall gjennom til simulert
+
+    # SIMULERT AI ANALYSE
     analysis = []
     analysis.append(f"⚡ SIMULERT AI: Starter analyse av {total} ansatte for akutt '{shift_type}'-dekning...")
-    
-    # 1. Fjern de med feil kompetanse
-    wrong_comp = [p for p in db if p.get("role") == "Hjelpepleier"]
+    analysis.append(f"   (Inkluderer {len(state.get('profiles', {}))} deltakere med egne variabler)")
+
+    # 1. Filtreringsregler
+    wrong_comp = [p for p in db if p.get("role") != "Intensivsykepleier"]
     analysis.append(f"❌ Utelukket {len(wrong_comp)} ansatte: Feil kompetanse (krever Intensivsykepleier).")
-    
-    # 2. Fjern de på ferie/permisjon
-    leave = [p for p in db if p.get("status") in ["FERIE", "PERMISJON", "SYKT BARN"]]
-    analysis.append(f"❌ Utelukket {len(leave)} ansatte: Lovfestet fravær (Ferie/Permisjon/Sykt barn).")
-    
-    # 3. Arbeidsmiljøloven (100% stilling eller hviletid)
+
+    leave = [p for p in db if p.get("status") in ["FERIE", "PERMISJON", "SYKT BARN", "SYK"]]
+    analysis.append(f"❌ Utelukket {len(leave)} ansatte: Lovfestet fravær (Ferie/Permisjon/Sykt barn/Syk).")
+
     aml = [p for p in db if p.get("exclusion_reason", "").startswith("Overstiger") or p.get("exclusion_reason", "").startswith("Brudd")]
     analysis.append(f"❌ Utelukket {len(aml)} ansatte: AML-brudd (11-timers hvile / 100% overtid).")
-    
-    # 4. Jobber allerede
+
     working = [p for p in db if p.get("exclusion_reason", "").startswith("Har allerede")]
     analysis.append(f"❌ Utelukket {len(working)} ansatte: Tildelt annen vakt (kollisjon).")
-    
-    # 5. Prioriter kandidatene (høyest stillingsprosent først)
-    candidates = [p for p in db if p.get("status") == "AVAILABLE" and p.get("role") == "Intensivsykepleier"]
+
+    # 2. Finn kvalifiserte kandidater
+    candidates = [p for p in db if p.get("status") == "AVAILABLE"
+                  and p.get("role") == "Intensivsykepleier"
+                  and not p.get("exclusion_reason")]
     candidates.sort(key=lambda x: x["contract"], reverse=True)
-    
+
     candidate_names = [c["name"] for c in candidates]
-    analysis.append(f"✅ FANT {len(candidates)} KVALIFISERTE KANDIDATER.")
-    analysis.append(f"📊 Prioritering (høyest stillingsprosent først):")
-    for i, c in enumerate(candidates):
-        analysis.append(f"   {i+1}. {c['name']} ({c['contract']}% stilling)")
-    
-    analysis.append(f"")
-    analysis.append(f"📱 Ringer Kandidat 1: {candidates[0]['name']}...")
-    
+
+    # 3. ESKALERING: Hvis ingen kandidater, kontakt bemanningsbyrå
+    if not candidates:
+        analysis.append(f"")
+        analysis.append(f"⚠️  INGEN KVALIFISERTE KANDIDATER FUNNET I LOKAL DATABASE!")
+        analysis.append(f"📞 ESKALERER: Ringer bemanningsbyrå...")
+
+        # Generer en vikar fra byrå
+        agency_name = f"Vikar fra Byrå ({datetime.now().strftime('%H:%M')})"
+        agency_worker = {
+            "name": agency_name,
+            "role": "Intensivsykepleier",
+            "contract": 0,  # 0% = vikar, tilgjengelig for alt
+            "status": "AVAILABLE",
+            "shifts": ["FRI", "FRI", "FRI", "FRI", "FRI"],
+            "exclusion_reason": None,
+            "from_agency": True
+        }
+
+        # Legg til i database
+        state["turnus"]["rows"].append(agency_worker)
+        candidate_names = [agency_name]
+
+        analysis.append(f"✅ Bemanningsbyrå sendte vikar: {agency_name}")
+        analysis.append(f"   Kompetanse: Intensivsykepleier (verifisert)")
+        analysis.append(f"   Tilgjengelighet: Umiddelbar")
+
+        # Marker at eskalering skjedde
+        state["shift_request"]["escalation_triggered"] = True
+        state["shift_request"]["agency_worker"] = agency_name
+
+        analysis.append(f"")
+        analysis.append(f"📱 Ringer vikar fra bemanningsbyrå...")
+    else:
+        analysis.append(f"")
+        analysis.append(f"✅ FANT {len(candidates)} KVALIFISERTE KANDIDATER.")
+        analysis.append(f"📊 Prioritering (høyest stillingsprosent først):")
+        for i, c in enumerate(candidates):
+            analysis.append(f"   {i+1}. {c['name']} ({c['contract']}% stilling)")
+
+        analysis.append(f"")
+        analysis.append(f"📱 Ringer Kandidat 1: {candidates[0]['name']}...")
+
     # Lagre køen i state
     state["shift_request"]["candidate_queue"] = candidate_names
     state["shift_request"]["current_candidate_index"] = 0
     state["shift_request"]["candidate_start_time"] = datetime.now().timestamp()
-    
+
     return analysis
 
 
@@ -302,6 +415,10 @@ def reset_turnus():
     state["shift_request"]["candidate_queue"] = []
     state["shift_request"]["current_candidate_index"] = 0
     state["shift_request"]["candidate_start_time"] = None
+    state["shift_request"]["escalation_triggered"] = False
+    state["shift_request"]["agency_worker"] = None
+    state["profiles"] = {}  # Fjern deltaker-profiler
+    state["colleagues"] = set()
 
 
 def generate_reasoning_report():
@@ -310,6 +427,7 @@ def generate_reasoning_report():
 
     shift_req = state["shift_request"]
     turnus = state["turnus"]
+    profiles = state.get("profiles", {})
 
     sick_name = shift_req.get("sick_name", "Ukjent")
     shift_type = shift_req.get("shift_type", "Ukjent")
@@ -317,6 +435,8 @@ def generate_reasoning_report():
     analysis = shift_req.get("agent_analysis", [])
     candidates = shift_req.get("candidate_queue", [])
     ai_mode = state.get("ai_mode", "simulated")
+    escalation = shift_req.get("escalation_triggered", False)
+    agency_worker = shift_req.get("agency_worker", None)
 
     timestamp = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     date_str = datetime.now().strftime("%d.%m.%Y")
@@ -514,11 +634,37 @@ def generate_reasoning_report():
 """
 
     html += f"""
-    <h2>📈 Statistikk</h2>
+    <h2>� Deltaker-profiler (Egne Variabler)</h2>
+    <div class="candidate-list">
+        {f'<p style="color: #666; font-size: 14px; text-align: center;">Ingen deltakere registrerte seg</p>' if not profiles else ''}
+"""
+
+    # Vis deltaker-profiler
+    for name, profile in profiles.items():
+        role_icon = "✅" if profile.get("role") == "Intensivsykepleier" else "❌"
+        status_colors = {"AVAILABLE": "#4caf50", "FERIE": "#ff9800", "PERMISJON": "#9c27b0", "SYKT BARN": "#f44336", "SYK": "#f44336"}
+        status_color = status_colors.get(profile.get("status"), "#666")
+        status_text = profile.get("status", "Ukjent")
+
+        html += f"""        <div class="candidate" style="border-left: 4px solid {status_color}; margin: 0 -20px; padding-left: 16px;">
+            <div>
+                <strong>{name}</strong><br>
+                <small>{role_icon} {profile.get('role', '?')} | 📊 {profile.get('contract', '?')}% | <span style="color: {status_color}">●</span> {status_text}</small>
+                {f'<br><small style="color: #f44336;">⚠️ Har allerede vakt</small>' if profile.get('has_shift') else ''}
+            </div>
+        </div>
+"""
+
+    html += """    </div>
+
+    <h2>�� Statistikk</h2>
     <div class="info-box">
         <p><strong>Totalt antall ansatte analysert:</strong> {len(turnus['rows'])}</p>
         <p><strong>Kvalifiserte kandidater funnet:</strong> {len(candidates)}</p>
+        <p><strong>Deltakere med egne variabler:</strong> {len(profiles)}</p>
         <p><strong>Filtreringskriterier brukt:</strong> 6 (Kompetanse, Lovfestet fravær, AML 100%, AML hviletid, Vakt-kollisjon, Stillingsprosent)</p>
+        {f'<p style="color: #ff9800; margin-top: 10px;"><strong>⚠️ Eskalering:</strong> Bemanningsbyrå ble kontaktet</p>' if escalation else ''}
+        {f'<p style="color: #4caf50; margin-top: 5px;"><strong>✅ Vikar fra byrå:</strong> {agency_worker}</p>' if agency_worker else ''}
     </div>
 
     <div class="footer">

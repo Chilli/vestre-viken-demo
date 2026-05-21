@@ -30,7 +30,10 @@ def api_status():
         "active": state["shift_request"]["active"],
         "sick_name": state["shift_request"]["sick_name"],
         "shift_type": state["shift_request"]["shift_type"],
-        "winner_name": state["shift_request"]["winner_name"]
+        "winner_name": state["shift_request"]["winner_name"],
+        "candidate_queue": state["shift_request"].get("candidate_queue", []),
+        "escalation_triggered": state["shift_request"].get("escalation_triggered", False),
+        "agency_worker": state["shift_request"].get("agency_worker", None)
     })
 
 # ============================================================
@@ -201,8 +204,9 @@ MOBILE_APP_HTML = """
         .header { background: #1F4E79; color: white; padding: 15px; margin: -20px -20px 20px -20px; font-weight: bold;}
         .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 400px; margin: 0 auto; transition: all 0.3s;}
         
-        input { width: 90%; padding: 12px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px;}
+        input, select { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; box-sizing: border-box;}
         button { background: #1F4E79; color: white; border: none; padding: 15px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold;}
+        button.secondary { background: #757575; margin-top: 10px; font-size: 14px;}
         
         .alert-card { background: #ffebee; border: 2px solid #f44336; display: none;}
         .btn-accept { background: #4CAF50; font-size: 20px; padding: 20px; margin-top: 15px; animation: pulse 1.5s infinite;}
@@ -210,6 +214,9 @@ MOBILE_APP_HTML = """
         
         .success-card { background: #e8f5e9; border: 2px solid #4CAF50; display: none;}
         .missed-card { background: #eeeeee; border: 2px solid #9e9e9e; display: none;}
+        .excluded-card { background: #ffebee; border: 2px solid #f44336; display: none;}
+        .excluded-card h2 { color: #d32f2f; margin-top: 0; }
+        .excluded-reason { background: white; padding: 15px; border-radius: 8px; margin: 15px 0; text-align: left; font-size: 14px;}
         
         @keyframes pulse {
             0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4); }
@@ -218,22 +225,75 @@ MOBILE_APP_HTML = """
         }
         
         .spinner { margin-top: 20px; font-size: 14px; color: #666; }
+        .form-group { text-align: left; margin-bottom: 15px; }
+        .form-group label { display: block; font-weight: bold; margin-bottom: 5px; color: #555; font-size: 14px;}
+        .hint { font-size: 13px; color: #666; margin-top: -10px; margin-bottom: 15px; text-align: left;}
+        .warning { background: #fff3e0; border-left: 4px solid #ff9800; padding: 10px; margin: 10px 0; text-align: left; font-size: 13px; color: #e65100;}
     </style>
 </head>
 <body>
     <div class="header">🏥 VESTRE VIKEN HF</div>
     
-    <!-- LOGIN SCREEN -->
-    <div class="card" id="login-screen">
-        <h3>Registrer deg for vakt</h3>
-        <p style="color: #666; font-size: 14px;">Skriv inn ditt fornavn for å koble deg til vakt-systemet.</p>
-        <input type="text" id="name-input" placeholder="Ditt navn (f.eks Mette)">
-        <button onclick="register()">Koble til systemet</button>
+    <!-- REGISTRATION SCREEN -->
+    <div class="card" id="register-screen">
+        <h3>🎭 Din Profil</h3>
+        <p style="color: #666; font-size: 14px;">Velg dine egne variabler for denne demoen!</p>
+        
+        <div class="form-group">
+            <label for="reg-name">Navn</label>
+            <input type="text" id="reg-name" placeholder="Ditt navn">
+        </div>
+        
+        <div class="form-group">
+            <label for="reg-role">Rolle / Kompetanse</label>
+            <select id="reg-role">
+                <option value="Intensivsykepleier">Intensivsykepleier ✅ (Kan ta vakt)</option>
+                <option value="Hjelpepleier">Hjelpepleier ❌ (Feil kompetanse)</option>
+                <option value="Assistent">Assistent ❌ (Feil kompetanse)</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="reg-contract">Stillingsprosent</label>
+            <select id="reg-contract">
+                <option value="100">100% (Kan ikke overtid > 100%)</option>
+                <option value="80">80% (Prioritet 1)</option>
+                <option value="60" selected>60% (Prioritet 2)</option>
+                <option value="40">40% (Prioritet 3)</option>
+                <option value="20">20% (Prioritet 4)</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="reg-status">Din status i dag</label>
+            <select id="reg-status">
+                <option value="AVAILABLE" selected>🟢 Tilgjengelig</option>
+                <option value="FERIE">🏖️ På ferie</option>
+                <option value="PERMISJON">👶 I permisjon</option>
+                <option value="SYKT BARN">🤒 Sykt barn</option>
+                <option value="SYK">🤕 Syk selv</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="reg-has-shift">Har du allerede vakt i dag?</label>
+            <select id="reg-has-shift">
+                <option value="no" selected>Nei, jeg er ledig</option>
+                <option value="yes">Ja, jeg jobber allerede</option>
+            </select>
+        </div>
+        
+        <div class="warning">
+            💡 <strong>Tips:</strong> Hvis alle velger ugunstige variabler, vil AI-en ringe bemanningsbyrå!
+        </div>
+        
+        <button onclick="registerWithProfile()">Registrer i systemet</button>
     </div>
 
     <!-- IDLE SCREEN -->
     <div class="card" id="idle-screen" style="display: none;">
         <h3 id="welcome-text">Velkommen</h3>
+        <div id="profile-summary" style="background: #f5f7fa; padding: 15px; border-radius: 8px; margin: 15px 0; text-align: left; font-size: 14px;"></div>
         <div class="spinner">
             📡 Lytter etter fraværsmeldinger...<br><br>
             <small>Systemet er tilkoblet. Du kan slappe av.</small>
@@ -256,6 +316,16 @@ MOBILE_APP_HTML = """
         <p>Takk for at du stiller opp, <b id="win-name"></b>!</p>
     </div>
     
+    <!-- EXCLUDED SCREEN -->
+    <div class="card excluded-card" id="excluded-screen" style="display: none;">
+        <h2>❌ DU BLE UTELUKKET</h2>
+        <p>AI-agenten har analysert profilen din.</p>
+        <div class="excluded-reason" id="exclusion-reason">
+            <strong>Årsak:</strong> <span id="exclusion-text"></span>
+        </div>
+        <p style="font-size: 13px; color: #666;">Du kan ikke ta denne vakten basert på valgte variabler.</p>
+    </div>
+
     <!-- MISSED SCREEN -->
     <div class="card missed-card" id="missed-screen">
         <h2 style="color: #616161; margin-top:0;">ℹ️ VAKT DEKKET</h2>
@@ -265,77 +335,114 @@ MOBILE_APP_HTML = """
 
     <script>
         let myName = "";
-        
-        function register() {
-            let input = document.getElementById("name-input").value.trim();
-            if(input === "") return alert("Vennligst skriv inn navnet ditt.");
-            
-            myName = input;
-            
-            // Registrer hos serveren
+        let myProfile = null;
+        let amIExcluded = false;
+
+        function registerWithProfile() {
+            let name = document.getElementById("reg-name").value.trim();
+            if(name === "") return alert("Vennligst skriv inn navnet ditt.");
+
+            myName = name;
+            myProfile = {
+                name: name,
+                role: document.getElementById("reg-role").value,
+                contract: parseInt(document.getElementById("reg-contract").value),
+                status: document.getElementById("reg-status").value,
+                has_shift: document.getElementById("reg-has-shift").value === "yes"
+            };
+
+            // Registrer med profil hos serveren
             fetch('/api/register', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({name: myName})
+                body: JSON.stringify({name: myName, profile: myProfile})
             });
-            
-            document.getElementById("login-screen").style.display = "none";
+
+            document.getElementById("register-screen").style.display = "none";
             document.getElementById("idle-screen").style.display = "block";
             document.getElementById("welcome-text").innerText = "Velkommen, " + myName;
-            
+
+            // Vis profil-oppsummering
+            let statusEmoji = {"AVAILABLE": "🟢", "FERIE": "🏖️", "PERMISJON": "👶", "SYKT BARN": "🤒", "SYK": "🤕"}[myProfile.status] || "⚪";
+            let roleIcon = myProfile.role === "Intensivsykepleier" ? "✅" : "❌";
+            document.getElementById("profile-summary").innerHTML = `
+                <strong>Din profil:</strong><br>
+                ${roleIcon} ${myProfile.role}<br>
+                📊 ${myProfile.contract}% stilling<br>
+                ${statusEmoji} ${myProfile.status}${myProfile.has_shift ? '<br>⚠️ Har allerede vakt' : ''}
+            `;
+
             // Start polling for status
             startPolling();
         }
-        
+
         function acceptShift() {
             fetch('/api/accept', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({name: myName})
+                body: JSON.stringify({name: myName, profile: myProfile})
             }).then(res => res.json()).then(data => {
                 if (data.success === false) {
-                    alert(data.error);
+                    amIExcluded = true;
+                    document.getElementById("exclusion-text").innerText = data.error;
+                    showScreen('excluded-screen');
+                } else if (data.winner) {
+                    document.getElementById("alert-screen").style.display = "none";
                 } else {
+                    // Noen andre var raskere
                     document.getElementById("alert-screen").style.display = "none";
                 }
             });
         }
-        
+
+        function showScreen(screenId) {
+            ['register-screen', 'idle-screen', 'alert-screen', 'success-screen', 'missed-screen', 'excluded-screen'].forEach(id => {
+                document.getElementById(id).style.display = (id === screenId) ? 'block' : 'none';
+            });
+        }
+
         function startPolling() {
             setInterval(() => {
+                if (amIExcluded) return; // Ikke bytt skjerm hvis utelukket
+
                 fetch('/api/status')
                 .then(res => res.json())
                 .then(data => {
-                    // Skjul alle skjermer først
-                    document.getElementById("idle-screen").style.display = "none";
-                    document.getElementById("alert-screen").style.display = "none";
-                    document.getElementById("success-screen").style.display = "none";
-                    document.getElementById("missed-screen").style.display = "none";
-                    
+                    if (amIExcluded) return;
+
                     if (data.active && !data.winner_name) {
-                        // ALARM!
-                        document.getElementById("alert-screen").style.display = "block";
-                        document.getElementById("sick-name").innerText = data.sick_name;
-                        document.getElementById("shift-type").innerText = data.shift_type;
-                        
-                        // Vibrate if mobile
-                        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-                        
+                        // ALARM! Sjekk om brukeren er i candidate_queue
+                        let inQueue = data.candidate_queue && data.candidate_queue.some(n =>
+                            n.toLowerCase().includes(myName.toLowerCase()) ||
+                            myName.toLowerCase().includes(n.toLowerCase().split(' ')[0])
+                        );
+
+                        if (inQueue) {
+                            showScreen('alert-screen');
+                            document.getElementById("sick-name").innerText = data.sick_name;
+                            document.getElementById("shift-type").innerText = data.shift_type;
+                            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+                        }
+                        // Hvis ikke i kø, fortsett å vise idle
+
                     } else if (data.winner_name) {
                         // NOEN VANT!
-                        if (data.winner_name === myName) {
-                            document.getElementById("success-screen").style.display = "block";
+                        let iWon = data.winner_name.toLowerCase().includes(myName.toLowerCase()) ||
+                                   myName.toLowerCase().includes(data.winner_name.toLowerCase().split(' ')[0]);
+
+                        if (iWon) {
+                            showScreen('success-screen');
                             document.getElementById("win-name").innerText = myName;
                         } else {
-                            document.getElementById("missed-screen").style.display = "block";
+                            showScreen('missed-screen');
                             document.getElementById("winner-name-display").innerText = data.winner_name;
                         }
                     } else {
                         // IDLE
-                        document.getElementById("idle-screen").style.display = "block";
+                        showScreen('idle-screen');
                     }
                 });
-            }, 1000); // Sjekker hvert sekund
+            }, 1000);
         }
     </script>
 </body>
@@ -349,11 +456,18 @@ def mobile_app():
 
 @app.route('/api/register', methods=['POST'])
 def api_register():
-    """Registrerer en ny mobilbruker."""
+    """Registrerer en ny mobilbruker med profil."""
     data = request.json
-    if "name" in data:
-        state["colleagues"].add(data["name"])
-        print(f"📱 Ny tilkobling: {data['name']}")
+    name = data.get("name", "")
+    profile = data.get("profile", {})
+
+    if name:
+        state["colleagues"].add(name)
+        # Lagre profilen
+        if "profiles" not in state:
+            state["profiles"] = {}
+        state["profiles"][name] = profile
+        print(f"📱 Ny tilkobling: {name} ({profile.get('role', 'ukjent')}, {profile.get('contract', '?')}%)")
     return jsonify({"status": "ok"})
 
 @app.route('/api/accept', methods=['POST'])
@@ -361,28 +475,54 @@ def api_accept():
     """Håndterer når en sykepleier trykker 'BEKREFT TILGJENGELIGHET'."""
     data = request.json
     name = data.get("name", "")
-    
-    # Valider mot "Smart Matching" logikken: Må være en av de lovlige publikummerne
-    valid_names = ["Mette Prada Hansen", "Wes Side Story", "Dr. Anton Graff"]
-    is_valid = any(p.lower() in name.lower() for p in ["mette", "wes", "anton"])
-    
-    if not is_valid:
-        return jsonify({"success": False, "error": "Du ble utelukket av Agenten pga Arbeidsmiljøloven eller feil kompetanse!"})
-    
+    profile = data.get("profile", {})
+
+    # DYNAMISK VALIDERING basert på profilen deltakeren valgte
+    errors = []
+
+    # 1. Sjekk kompetanse
+    if profile.get("role") != "Intensivsykepleier":
+        errors.append("Feil kompetanse - krever Intensivsykepleier")
+
+    # 2. Sjekk status (ferie, permisjon, syk)
+    if profile.get("status") in ["FERIE", "PERMISJON", "SYKT BARN", "SYK"]:
+        status_names = {"FERIE": "på ferie", "PERMISJON": "i permisjon", "SYKT BARN": "hjemme med sykt barn", "SYK": "syk"}
+        errors.append(f"Du er {status_names.get(profile.get('status'), 'utilgjengelig')}")
+
+    # 3. Sjekk stillingsprosent (100% = kan ikke ta overtid)
+    if profile.get("contract", 0) >= 100:
+        errors.append("Overstiger 100% stilling (Arbeidsmiljøloven)")
+
+    # 4. Sjekk om har vakt allerede
+    if profile.get("has_shift", False):
+        errors.append("Har allerede vakt i dag (kollisjon)")
+
+    # Hvis noen feil, returner utelukkelse
+    if errors:
+        return jsonify({"success": False, "error": "; ".join(errors)})
+
+    # Sjekk om denne personen er i candidate_queue
+    candidate_queue = state["shift_request"].get("candidate_queue", [])
+    is_in_queue = any(name.lower() in cq.lower() or cq.lower() in name.lower() for cq in candidate_queue)
+
+    if not is_in_queue and not state["shift_request"].get("escalation_triggered"):
+        # Ikke i køen - ble filtrert ut av AI
+        return jsonify({"success": False, "error": "Du ble utelukket av AI-agenten under analysefasen"})
+
     # Førstemann til mølla sjekk
     if state["shift_request"]["active"] and state["shift_request"]["winner_name"] is None:
         # VI HAR EN VINNER!
         state["shift_request"]["active"] = False
         sick_name = state["shift_request"]["sick_name"]
-        
+
         print(f"\n🎉 VAKT DEKKET: {name} var raskest!")
-        
-        # Oppdater minne-databasen (den returnerer det normaliserte navnet)
+
+        # Oppdater minne-databasen
         actual_name = mark_replacement(sick_name, name)
         state["shift_request"]["winner_name"] = actual_name
-        
+
         return jsonify({"success": True, "winner": True})
-        
+
     # Noen andre var raskere
     return jsonify({"success": True, "winner": False})
 
