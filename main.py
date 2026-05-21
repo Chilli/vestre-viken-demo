@@ -48,7 +48,7 @@ ADMIN_HTML = """
 <head>
     <title>Admin - Vestre Viken</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta http-equiv="refresh" content="3">
+    <!-- Ingen auto-refresh - manuell oppdatering med F5 -->
     <style>
         body { font-family: -apple-system, sans-serif; background: #f5f7fa; padding: 20px; text-align: center; }
         .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
