@@ -173,11 +173,11 @@ def get_css_class(val):
         return "vakt-fri"
     return ""
 
+from turnus_manager import load_or_create_turnus
+
 def render_live_dashboard():
     """Leser Excel-fila og bygger HTML."""
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), EXCEL_FILE)
-    if not os.path.exists(path):
-        return "Excel-filen finnes ikke. Kjør /setup først."
+    path = load_or_create_turnus()
         
     wb = load_workbook(path, data_only=True)
     ws = wb.active
