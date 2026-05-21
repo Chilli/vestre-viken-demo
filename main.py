@@ -37,29 +37,43 @@ def api_status():
 # ADMIN PANEL (For presentatøren)
 # ============================================================
 
+from state import analyze_candidates_for_shift
+
 ADMIN_HTML = """
 <!DOCTYPE html>
 <html>
 <head>
     <title>Admin - Vestre Viken</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="refresh" content="3">
     <style>
         body { font-family: -apple-system, sans-serif; background: #f5f7fa; padding: 20px; text-align: center; }
-        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 400px; margin: 0 auto; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
         button { background: #d32f2f; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold;}
         button:hover { background: #b71c1c; }
         .reset { background: #757575; margin-top: 20px;}
         .reset:hover { background: #616161; }
+        .analysis { background: #1e1e1e; color: #00ff00; font-family: monospace; padding: 15px; border-radius: 8px; text-align: left; font-size: 14px; margin-top: 20px; line-height: 1.5; }
     </style>
 </head>
 <body>
     <div class="card">
         <h2>🛠️ Kontrollpanel</h2>
         <p>Tilkoblede sykepleiere: <b>{{ count }}</b></p>
+        <p style="color: #666; font-size: 12px;">Totalt i fiktiv database: {{ total_db }} ansatte</p>
         <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
         <form action="/admin/trigger" method="POST">
             <button type="submit">🚨 MELD NILS DAGENDERPÅ SYK</button>
         </form>
+        
+        {% if analysis %}
+        <div class="analysis">
+            {% for line in analysis %}
+                <div>> {{ line }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
         <form action="/admin/reset" method="POST">
             <button type="submit" class="reset">🔄 Nullstill System</button>
         </form>
@@ -71,7 +85,12 @@ ADMIN_HTML = """
 @app.route('/admin')
 def admin_panel():
     """Admin panelet Jarl bruker for å trigge krisen."""
-    return render_template_string(ADMIN_HTML, count=len(state["colleagues"]))
+    return render_template_string(
+        ADMIN_HTML, 
+        count=len(state["colleagues"]),
+        total_db=len(state["turnus"]["rows"]),
+        analysis=state["shift_request"].get("agent_analysis")
+    )
 
 @app.route('/admin/trigger', methods=['POST'])
 def admin_trigger():
@@ -80,6 +99,10 @@ def admin_trigger():
     state["shift_request"]["sick_name"] = "Nils Dagenderpå"
     state["shift_request"]["shift_type"] = "DAG 08-20"
     state["shift_request"]["winner_name"] = None
+    
+    # Kjør smart matching (Agenten tenker)
+    analysis_log = analyze_candidates_for_shift("Nils Dagenderpå", "DAG 08-20")
+    state["shift_request"]["agent_analysis"] = analysis_log
     
     # Oppdater minne-databasen
     mark_sick("Nils Dagenderpå")
@@ -204,8 +227,11 @@ MOBILE_APP_HTML = """
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({name: myName})
             }).then(res => res.json()).then(data => {
-                // Svaret håndteres via pollingen, men vi kan gi instant feedback lokalt
-                document.getElementById("alert-screen").style.display = "none";
+                if (data.success === false) {
+                    alert(data.error);
+                } else {
+                    document.getElementById("alert-screen").style.display = "none";
+                }
             });
         }
         
@@ -268,7 +294,14 @@ def api_register():
 def api_accept():
     """Håndterer når en sykepleier trykker 'BEKREFT TILGJENGELIGHET'."""
     data = request.json
-    name = data.get("name")
+    name = data.get("name", "")
+    
+    # Valider mot "Smart Matching" logikken: Må være en av de lovlige publikummerne
+    valid_names = ["Mette Prada Hansen", "Wes Side Story", "Dr. Anton Graff"]
+    is_valid = any(p.lower() in name.lower() for p in ["mette", "wes", "anton"])
+    
+    if not is_valid:
+        return jsonify({"success": False, "error": "Du ble utelukket av Agenten pga Arbeidsmiljøloven eller feil kompetanse!"})
     
     # Førstemann til mølla sjekk
     if state["shift_request"]["active"] and state["shift_request"]["winner_name"] is None:
