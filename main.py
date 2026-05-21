@@ -12,7 +12,7 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from state import state, mark_sick, mark_replacement, reset_turnus
+from state import state, mark_sick, mark_replacement, reset_turnus, generate_reasoning_report
 from web_dashboard import render_live_dashboard
 
 app = Flask(__name__)
@@ -106,6 +106,7 @@ ADMIN_HTML = """
                 <div>> {{ line }}</div>
             {% endfor %}
         </div>
+        <a href="/admin/report" target="_blank" style="display: block; background: #4caf50; color: white; text-decoration: none; padding: 15px; border-radius: 8px; margin-top: 15px; font-weight: bold;">📄 Last ned AI Tenkerapport (HTML/PDF)</a>
         {% endif %}
         
         <form action="/admin/reset" method="POST">
@@ -444,6 +445,24 @@ def live_dashboard():
 @app.route('/')
 def index():
     return redirect(url_for('live_dashboard'))
+
+@app.route('/admin/report')
+def admin_report():
+    """Genererer og viser rapport over AI-tenkingen."""
+    if not state["shift_request"].get("agent_analysis"):
+        return "<h2>Ingen analyse tilgjengelig ennå</h2><p>Trigger en sykdomsmelding først.</p><a href='/admin'>Tilbake til admin</a>", 400
+
+    html_report = generate_reasoning_report()
+
+    # Returner som HTML med download-forslag
+    from flask import Response
+    return Response(
+        html_report,
+        mimetype='text/html',
+        headers={
+            'Content-Disposition': f'inline; filename=vestre-viken-ai-rapport-{datetime.now().strftime("%Y%m%d")}.html'
+        }
+    )
 
 # ============================================================
 # OPPSTART

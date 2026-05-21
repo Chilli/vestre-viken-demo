@@ -302,3 +302,232 @@ def reset_turnus():
     state["shift_request"]["candidate_queue"] = []
     state["shift_request"]["current_candidate_index"] = 0
     state["shift_request"]["candidate_start_time"] = None
+
+
+def generate_reasoning_report():
+    """Genererer et detaljert sammendrag av AI-tenkingen for nedlasting."""
+    from datetime import datetime
+
+    shift_req = state["shift_request"]
+    turnus = state["turnus"]
+
+    sick_name = shift_req.get("sick_name", "Ukjent")
+    shift_type = shift_req.get("shift_type", "Ukjent")
+    winner = shift_req.get("winner_name", "Ikke tildelt")
+    analysis = shift_req.get("agent_analysis", [])
+    candidates = shift_req.get("candidate_queue", [])
+    ai_mode = state.get("ai_mode", "simulated")
+
+    timestamp = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    date_str = datetime.now().strftime("%d.%m.%Y")
+
+    # Bygg HTML-rapport
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>AI Vaktplanlegging - Rapport {date_str}</title>
+    <style>
+        @media print {{
+            body {{ font-size: 12pt; }}
+            .no-print {{ display: none; }}
+        }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }}
+        h1 {{ color: #1F4E79; border-bottom: 3px solid #1F4E79; padding-bottom: 10px; }}
+        h2 {{ color: #1565c0; margin-top: 30px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }}
+        .header {{
+            background: linear-gradient(135deg, #1F4E79 0%, #1565c0 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }}
+        .header h1 {{ margin: 0; border: none; color: white; }}
+        .meta {{ color: rgba(255,255,255,0.8); font-size: 14px; margin-top: 10px; }}
+        .info-box {{
+            background: #f5f7fa;
+            border-left: 4px solid #1F4E79;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }}
+        .info-box h3 {{ margin-top: 0; color: #1F4E79; }}
+        .status-badge {{
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }}
+        .status-live {{ background: #4caf50; color: white; }}
+        .status-sim {{ background: #ff9800; color: white; }}
+        .analysis-log {{
+            background: #1e1e1e;
+            color: #00ff00;
+            font-family: 'Consolas', 'Monaco', monospace;
+            padding: 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.8;
+            overflow-x: auto;
+        }}
+        .analysis-log .timestamp {{ color: #888; }}
+        .winner-box {{
+            background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 10px;
+            text-align: center;
+            margin: 30px 0;
+        }}
+        .winner-box h2 {{ color: white; border: none; margin: 0; }}
+        .winner-name {{ font-size: 28px; font-weight: bold; margin: 10px 0; }}
+        .candidate-list {{
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+        }}
+        .candidate {{
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }}
+        .candidate:last-child {{ border-bottom: none; }}
+        .candidate.selected {{
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            margin: 0 -15px;
+            padding-left: 11px;
+        }}
+        .rank {{
+            background: #1F4E79;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+        }}
+        .print-btn {{
+            background: #1F4E79;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }}
+        .print-btn:hover {{ background: #1565c0; }}
+        .footer {{
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 2px solid #eee;
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+        }}
+    </style>
+</head>
+<body>
+    <button class="print-btn no-print" onclick="window.print()">🖨️ Skriv ut / Lagre som PDF</button>
+
+    <div class="header">
+        <h1>🏥 VESTRE VIKEN HF</h1>
+        <div class="meta">AI Vaktplanlegging - Automatisk Generert Rapport</div>
+        <div class="meta">Generert: {timestamp}</div>
+    </div>
+
+    <div class="info-box">
+        <h3>📋 Saksinformasjon</h3>
+        <p><strong>Fraværsmelding:</strong> {sick_name}</p>
+        <p><strong>Vakt som må dekkes:</strong> {shift_type}</p>
+        <p><strong>Dato:</strong> {date_str}</p>
+        <p><strong>AI-modus:</strong>
+            <span class="status-badge {'status-live' if ai_mode == 'live' else 'status-sim'}">
+                {'🤖 DeepSeek AI' if ai_mode == 'live' else '⚡ Simulert AI'}
+            </span>
+        </p>
+    </div>
+
+    <h2>🧠 AI Analyse & Tenkeprosess</h2>
+    <div class="analysis-log">
+"""
+
+    # Legg til analyseloggen
+    for line in analysis:
+        html += f"        <div>{line}</div>\n"
+
+    html += f"""    </div>
+
+    <h2>📊 Prioritert Kandidatliste</h2>
+    <div class="candidate-list">
+"""
+
+    # Legg til kandidater
+    for i, name in enumerate(candidates[:5], 1):  # Vis topp 5
+        is_winner = name == winner
+        selected_class = "selected" if is_winner else ""
+        check = "✅ " if is_winner else ""
+        html += f"""        <div class="candidate {selected_class}">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div class="rank">{i}</div>
+                <div><strong>{check}{name}</strong></div>
+            </div>
+            {'<span style="color: #4caf50; font-weight: bold;">TILDELT VAKT</span>' if is_winner else ''}
+        </div>
+"""
+
+    if winner and winner != "Ikke tildelt":
+        html += f"""    </div>
+
+    <div class="winner-box">
+        <h2>✅ VAKT TILDELT</h2>
+        <div class="winner-name">{winner}</div>
+        <p>Vakten ble automatisk tildelt basert på AI-analyse</p>
+    </div>
+"""
+    else:
+        html += f"""    </div>
+
+    <div class="info-box" style="border-left-color: #ff9800;">
+        <h3>⏳ Status: Venter på respons</h3>
+        <p>Vakten er ennå ikke tildelt. Kandidater kontaktes i prioritert rekkefølge.</p>
+    </div>
+"""
+
+    html += f"""
+    <h2>📈 Statistikk</h2>
+    <div class="info-box">
+        <p><strong>Totalt antall ansatte analysert:</strong> {len(turnus['rows'])}</p>
+        <p><strong>Kvalifiserte kandidater funnet:</strong> {len(candidates)}</p>
+        <p><strong>Filtreringskriterier brukt:</strong> 6 (Kompetanse, Lovfestet fravær, AML 100%, AML hviletid, Vakt-kollisjon, Stillingsprosent)</p>
+    </div>
+
+    <div class="footer">
+        <p>🏥 Vestre Viken HF - Vaktplanleggingssystem</p>
+        <p>Denne rapporten er automatisk generert av AI-agenten</p>
+        <p>Rapport ID: VV-{datetime.now().strftime('%Y%m%d-%H%M%S')}</p>
+    </div>
+
+</body>
+</html>"""
+
+    return html
