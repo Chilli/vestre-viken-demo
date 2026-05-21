@@ -148,9 +148,9 @@ HTML_TEMPLATE = """
             {% endfor %}
         </table>
         <div class="legend">
-            <div class="legend-item"><div class="color-box vakt-dag"></div> DAG 07-15</div>
-            <div class="legend-item"><div class="color-box vakt-kveld"></div> KVELD 14-23</div>
-            <div class="legend-item"><div class="color-box vakt-natt"></div> NATT 23-07</div>
+            <div class="legend-item"><div class="color-box vakt-dag"></div> DAG 07:15-14:45</div>
+            <div class="legend-item"><div class="color-box vakt-kveld"></div> KVELD 15:00-22:30</div>
+            <div class="legend-item"><div class="color-box vakt-natt"></div> NATT 22:00-07:30</div>
             <div class="legend-item"><div class="color-box vakt-12t"></div> 12T VAKT</div>
             <div class="legend-item"><div class="color-box vakt-ledig"></div> LEDIG</div>
             <div class="legend-item"><div class="color-box vakt-syk" style="animation:none;"></div> SYK</div>

@@ -21,13 +21,13 @@ def generate_complex_database():
     """Lager realistiske turnuser for sykepleiere med dag/kveld/natt-vakter."""
 
     # Realistiske turnusmønstre (mandag-fredag)
-    # DAG 07:00-15:30 / KVELD 14:30-23:00 / NATT 23:00-07:30 / 12T DAG 07:00-19:00 / 12T NATT 19:00-07:00
+    # DAG 07:15-14:45 / KVELD 15:00-22:30 / NATT 22:00-07:30 / 12T DAG 07:00-19:00 / 12T NATT 19:00-07:00
 
     # De 3 publikummerne - ulike turnusmønstre
     audience = [
         # Mette: 3-skift klassisk turnus
         {"name": "Mette Prada Hansen", "role": "Intensivsykepleier", "status": "AVAILABLE",
-         "shifts": ["NATT 23-07", "LEDIG", "DAG 07-15", "KVELD 14-23", "LEDIG"],
+         "shifts": ["NATT 22-07", "LEDIG", "DAG 07-15", "KVELD 15-22", "LEDIG"],
          "turnus_type": "3-skift"},
         # Anton: 12-timers turnus (dager)
         {"name": "Dr. Anton Graff", "role": "Intensivsykepleier", "status": "AVAILABLE",
@@ -42,34 +42,49 @@ def generate_complex_database():
     # Den som blir syk - 3-skift turnus
     sick_person = [
         {"name": "Nils Dagenderpå", "role": "Intensivsykepleier", "status": "OK",
-         "shifts": ["DAG 07-15", "KVELD 14-23", "LEDIG", "NATT 23-07", "DAG 07-15"],
+         "shifts": ["DAG 07-15", "KVELD 15-22", "LEDIG", "NATT 22-07", "DAG 07-15"],
          "turnus_type": "3-skift"}
     ]
 
     # Fyll på med realistiske turnuser
     fillers_data = [
-        # Intensivsykepleiere med ulike turnuser
-        ("Kari Vaktmester", "3-skift", ["DAG 07-15", "KVELD 14-23", "NATT 23-07", "LEDIG", "DAG 07-15"]),
-        ("Ole Tidsklemme", "3-skift", ["LEDIG", "DAG 07-15", "KVELD 14-23", "LEDIG", "NATT 23-07"]),
-        ("Lise Trøtt", "3-skift", ["NATT 23-07", "LEDIG", "DAG 07-15", "KVELD 14-23", "LEDIG"]),
+        # === DAGVAKT-KUN ANSATTE (seniorer/småbarnsforeldre) ===
+        ("Siri Småbarnsmor", "dag-kun", ["DAG 07-15", "DAG 07-15", "LEDIG", "DAG 07-15", "DAG 07-15"]),
+        ("Knut Senior", "dag-kun", ["DAG 07-15", "LEDIG", "DAG 07-15", "DAG 07-15", "DAG 07-15"]),
+        ("Lise Dagskift", "dag-kun", ["DAG 07-15", "DAG 07-15", "DAG 07-15", "LEDIG", "DAG 07-15"]),
+        ("Petter Barnehage", "dag-kun", ["LEDIG", "DAG 07-15", "DAG 07-15", "DAG 07-15", "LEDIG"]),
+        
+        # === 3-SKIFT KLASSISK (rotasjon dag/kveld/natt) ===
+        ("Kari Vaktmester", "3-skift", ["DAG 07-15", "KVELD 15-22", "NATT 22-07", "LEDIG", "DAG 07-15"]),
+        ("Ole Tidsklemme", "3-skift", ["LEDIG", "DAG 07-15", "KVELD 15-22", "LEDIG", "NATT 22-07"]),
+        ("Lise Trøtt", "3-skift", ["NATT 22-07", "LEDIG", "DAG 07-15", "KVELD 15-22", "LEDIG"]),
+        ("Jonas Helse", "3-skift", ["KVELD 15-22", "NATT 22-07", "LEDIG", "DAG 07-15", "KVELD 15-22"]),
+        ("Per Kaffe", "3-skift", ["DAG 07-15", "LEDIG", "NATT 22-07", "LEDIG", "DAG 07-15"]),
+        ("Simen Stress", "3-skift", ["KVELD 15-22", "DAG 07-15", "LEDIG", "KVELD 15-22", "NATT 22-07"]),
+        
+        # === 12-TIMERS TURNUS ===
         ("Bernt Overtid", "12-timers", ["12T DAG 07-19", "LEDIG", "12T DAG 07-19", "12T NATT 19-07", "LEDIG"]),
-        ("Siri Småbarnsmor", "dag-kun", ["DAG 07-15", "DAG 07-15", "LEDIG", "DAG 07-15", "LEDIG"]),
-        ("Jonas Helse", "3-skift", ["KVELD 14-23", "NATT 23-07", "LEDIG", "DAG 07-15", "KVELD 14-23"]),
         ("Nina Turnus", "12-timers", ["LEDIG", "12T NATT 19-07", "12T DAG 07-19", "LEDIG", "12T DAG 07-19"]),
-        ("Per Kaffe", "3-skift", ["DAG 07-15", "LEDIG", "NATT 23-07", "LEDIG", "DAG 07-15"]),
-        ("Trude Nattevakt", "natt-preferanse", ["NATT 23-07", "NATT 23-07", "LEDIG", "NATT 23-07", "LEDIG"]),
-        ("Simen Stress", "3-skift", ["KVELD 14-23", "DAG 07-15", "LEDIG", "KVELD 14-23", "NATT 23-07"]),
+        ("Maya 12Timer", "12-timers", ["12T DAG 07-19", "12T NATT 19-07", "LEDIG", "12T DAG 07-19", "LEDIG"]),
+        
+        # === NATT-PREFERANSE ===
+        ("Trude Nattevakt", "natt-preferanse", ["NATT 22-07", "NATT 22-07", "LEDIG", "NATT 22-07", "LEDIG"]),
+        ("Nora Nattskift", "natt-preferanse", ["LEDIG", "NATT 22-07", "NATT 22-07", "NATT 22-07", "LEDIG"]),
+        
         # Andre roller (ikke intensiv)
-        ("Anne Vikar", "Vernepleier", "3-skift", ["DAG 07-15", "KVELD 14-23", "LEDIG", "DAG 07-15", "KVELD 14-23"]),
+        ("Anne Vikar", "Vernepleier", "3-skift", ["DAG 07-15", "KVELD 15-22", "LEDIG", "DAG 07-15", "KVELD 15-22"]),
         ("Petter Gips", "Helsefagarbeider", "dag-kun", ["DAG 07-15", "DAG 07-15", "DAG 07-15", "LEDIG", "DAG 07-15"]),
-        ("Mari Sprøyte", "Sykepleier", "3-skift", ["LEDIG", "NATT 23-07", "DAG 07-15", "KVELD 14-23", "LEDIG"]),
+        ("Mari Sprøyte", "Sykepleier", "3-skift", ["LEDIG", "NATT 22-07", "DAG 07-15", "KVELD 15-22", "LEDIG"]),
         ("Geir Skalpell", "Vernepleier", "12-timers", ["12T DAG 07-19", "LEDIG", "LEDIG", "12T DAG 07-19", "12T NATT 19-07"]),
+        
         # Permisjon/ferie
         ("Kine Plaster", "Intensivsykepleier", "PERMISJON", ["FORELDREPERM", "FORELDREPERM", "FORELDREPERM", "FORELDREPERM", "FORELDREPERM"]),
         ("Jan EKG", "Intensivsykepleier", "FERIE", ["FERIE", "FERIE", "FERIE", "FERIE", "FERIE"]),
+        
         # AML-brudd (for kort hviletid)
-        ("Turid Puls", "Intensivsykepleier", "3-skift-kort-hvile", ["NATT 23-07", "LEDIG", "DAG 07-15", "KVELD 14-23", "DAG 07-15"]),
+        ("Turid Puls", "Intensivsykepleier", "3-skift-kort-hvile", ["NATT 22-07", "LEDIG", "DAG 07-15", "KVELD 15-22", "DAG 07-15"]),
         ("Magnus Blod", "Intensivsykepleier", "12-timers-tett", ["12T NATT 19-07", "12T DAG 07-19", "LEDIG", "12T NATT 19-07", "LEDIG"]),
+        
         # Sykemeldt/sykt barn
         ("Silje Sår", "Intensivsykepleier", "SYK", ["SYKEMELDT", "SYKEMELDT", "LEDIG", "SYKEMELDT", "SYKEMELDT"]),
         ("Bjarne Pille", "Intensivsykepleier", "SYKT BARN", ["HJEMME SYKT BARN", "HJEMME SYKT BARN", "LEDIG", "HJEMME SYKT BARN", "HJEMME SYKT BARN"]),
