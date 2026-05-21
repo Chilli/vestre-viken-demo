@@ -328,10 +328,29 @@ def build_database_from_profiles():
     """Bygger dynamisk database fra deltaker-profiler + fyller på med fiktive folk."""
     profiles = state.get("profiles", {})
 
+    # Sjekk om Nils er syk i turnusen
+    day_idx = datetime.now().weekday()
+    if day_idx > 4:
+        day_idx = 0
+    
+    nils_status = "OK"
+    nils_shifts = ["DAG 07-15", "KVELD 14-23", "LEDIG", "NATT 23-07", "DAG 07-15"]
+    
+    # Sjekk eksisterende turnus for å se om Nils er markert syk
+    for row in state.get("turnus", {}).get("rows", []):
+        if row.get("name") == "Nils Dagenderpå":
+            shifts = row.get("shifts", [])
+            if len(shifts) > day_idx:
+                today_shift = shifts[day_idx]
+                if "SYK" in str(today_shift):
+                    nils_status = "SYK"
+                    nils_shifts = shifts  # Behold oppdaterte skift med SYK-markering
+            break
+
     # Start med den syke personen - realistisk 3-skift turnus
     db = [
-        {"name": "Nils Dagenderpå", "role": "Intensivsykepleier", "status": "OK",
-         "shifts": ["DAG 07-15", "KVELD 14-23", "LEDIG", "NATT 23-07", "DAG 07-15"],
+        {"name": "Nils Dagenderpå", "role": "Intensivsykepleier", "status": nils_status,
+         "shifts": nils_shifts,
          "turnus_type": "3-skift"}
     ]
 
@@ -482,6 +501,16 @@ def analyze_candidates_for_shift(sick_name, shift_type, use_deepseek=False, api_
     if state.get("profiles"):
         analysis.append(f"👥 Eksterne deltakere: {len(state['profiles'])}")
     analysis.append("")
+    
+    # Tydelig markering av syk person
+    analysis.append("🚨 FRAVÆRSMELDING MOTTATT")
+    analysis.append("-" * 40)
+    analysis.append(f"  👤 Navn: {sick_name}")
+    analysis.append(f"  🩺 Status: SYKEMELDT (Kan ikke møte til vakt)")
+    analysis.append(f"  📅 Dato: {datetime.now().strftime('%d.%m.%Y')}")
+    analysis.append(f"  ⏰ Vakt som må dekkes: {shift_type}")
+    analysis.append("")
+    
     analysis.append(f"VURDERINGSRAPPORT - Akutt vaktdekning: {shift_type}")
     analysis.append(f"Tidspunkt: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}")
     analysis.append("=" * 60)
@@ -860,7 +889,7 @@ def generate_reasoning_report():
 
     <div class="info-box">
         <h3>📋 Saksinformasjon</h3>
-        <p><strong>Fraværsmelding:</strong> {sick_name}</p>
+        <p><strong>🤒 SYKEMELDING:</strong> {sick_name} <span style="color: #d32f2f; font-weight: bold;">(AKTIV SYKDOM)</span></p>
         <p><strong>Vakt som må dekkes:</strong> {shift_type}</p>
         <p><strong>Dato:</strong> {date_str}</p>
         <p><strong>AI-modus:</strong>

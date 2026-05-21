@@ -109,7 +109,17 @@ ADMIN_HTML = """
                 <div>> {{ line }}</div>
             {% endfor %}
         </div>
+        {% if shift_resolved %}
         <a href="/admin/report" target="_blank" style="display: block; background: #4caf50; color: white; text-decoration: none; padding: 15px; border-radius: 8px; margin-top: 15px; font-weight: bold;">📄 Last ned AI Tenkerapport (HTML/PDF)</a>
+        {% else %}
+        <div style="display: block; background: #ff9800; color: white; padding: 15px; border-radius: 8px; margin-top: 15px; font-weight: bold;">
+            ⏳ Venter på at vakten blir tildelt...<br>
+            <small style="font-weight: normal;">Rapporten blir tilgjengelig når:</small><br>
+            <small style="font-weight: normal;">• En deltaker aksepterer, ELLER</small><br>
+            <small style="font-weight: normal;">• Bemanningsbyrå kontaktes, ELLER</small><br>
+            <small style="font-weight: normal;">• Alle kandidater svarer</small>
+        </div>
+        {% endif %}
         {% endif %}
         
         <form action="/admin/reset" method="POST">
@@ -123,12 +133,20 @@ ADMIN_HTML = """
 @app.route('/admin')
 def admin_panel():
     """Admin panelet Jarl bruker for å trigge krisen."""
+    # Sjekk om vakten er ferdig løst
+    shift_resolved = (
+        state["shift_request"].get("winner_name") is not None or
+        state["shift_request"].get("escalation_triggered") or
+        state["shift_request"].get("active") is False and state["shift_request"].get("candidate_queue") == []
+    )
+    
     return render_template_string(
         ADMIN_HTML,
         count=len(state["colleagues"]),
         total_db=len(state["turnus"]["rows"]),
         analysis=state["shift_request"].get("agent_analysis"),
-        ai_mode=state.get("ai_mode", "simulated")
+        ai_mode=state.get("ai_mode", "simulated"),
+        shift_resolved=shift_resolved
     )
 
 @app.route('/admin/trigger', methods=['POST'])
@@ -621,6 +639,23 @@ def admin_report():
     """Genererer og viser rapport over AI-tenkingen."""
     if not state["shift_request"].get("agent_analysis"):
         return "<h2>Ingen analyse tilgjengelig ennå</h2><p>Trigger en sykdomsmelding først.</p><a href='/admin'>Tilbake til admin</a>", 400
+    
+    # Sjekk om vakten er ferdig løst (vinner funnet eller eskalert)
+    shift_resolved = (
+        state["shift_request"].get("winner_name") is not None or
+        state["shift_request"].get("escalation_triggered") or
+        state["shift_request"].get("active") is False and state["shift_request"].get("candidate_queue") == []
+    )
+    
+    if not shift_resolved:
+        return """<h2>⏳ Venter på at vakten blir tildelt...</h2>
+        <p>Rapporten vil være tilgjengelig når:</p>
+        <ul>
+            <li>✅ En deltaker har akseptert vakten, ELLER</li>
+            <li>📞 Bemanningsbyrå har blitt kontaktet, ELLER</li>
+            <li>⏰ Alle kandidater har svart (timeout)</li>
+        </ul>
+        <p><a href='/admin'>Tilbake til admin</a></p>""", 202
 
     html_report = generate_reasoning_report()
 
