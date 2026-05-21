@@ -99,8 +99,20 @@ ADMIN_HTML = """
         </div>
         
         <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+        
         <form action="/admin/trigger" method="POST">
-            <button type="submit" {% if ai_mode == 'live' %}style="background: #4caf50;"{% endif %}>🚨 MELD NILS DAGENDERPÅ SYK</button>
+            <label for="sick_person" style="display: block; margin-bottom: 10px; font-weight: bold;">Velg person som melder seg syk:</label>
+            <select name="sick_person" id="sick_person" style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 4px; border: 1px solid #ccc; font-size: 16px;">
+                {% for person in turnus_rows %}
+                <option value="{{ person.name }}" {% if person.today_shift %}data-shift="{{ person.today_shift }}"{% endif %}>
+                    {{ person.name }} {% if person.today_shift %}(Dagens vakt: {{ person.today_shift }}){% endif %}
+                </option>
+                {% endfor %}
+            </select>
+            <small style="display: block; margin-bottom: 15px; color: #666;">
+                AI vil analysere turnusen og finne erstatter uavhengig av hvem som blir syk
+            </small>
+            <button type="submit" {% if ai_mode == 'live' %}style="background: #4caf50;"{% endif %}>🚨 MELD VALGT PERSON SYK</button>
         </form>
         
         {% if analysis %}
@@ -133,6 +145,8 @@ ADMIN_HTML = """
 @app.route('/admin')
 def admin_panel():
     """Admin panelet Jarl bruker for å trigge krisen."""
+    from datetime import datetime
+    
     # Sjekk om vakten er ferdig løst
     shift_resolved = (
         state["shift_request"].get("winner_name") is not None or
@@ -140,22 +154,58 @@ def admin_panel():
         state["shift_request"].get("active") is False and state["shift_request"].get("candidate_queue") == []
     )
     
+    # Bygg turnus data med dagens vakt for hver person
+    day_idx = datetime.now().weekday()
+    if day_idx > 4:
+        day_idx = 0
+    
+    turnus_rows = []
+    for person in state["turnus"]["rows"]:
+        shifts = person.get("shifts", [])
+        today_shift = shifts[day_idx] if len(shifts) > day_idx else "Ukjent"
+        turnus_rows.append({
+            "name": person["name"],
+            "today_shift": today_shift
+        })
+    
     return render_template_string(
         ADMIN_HTML,
         count=len(state["colleagues"]),
         total_db=len(state["turnus"]["rows"]),
         analysis=state["shift_request"].get("agent_analysis"),
         ai_mode=state.get("ai_mode", "simulated"),
-        shift_resolved=shift_resolved
+        shift_resolved=shift_resolved,
+        turnus_rows=turnus_rows
     )
 
 @app.route('/admin/trigger', methods=['POST'])
 def admin_trigger():
     """Utløser sykdomsalarmen!"""
     try:
+        from datetime import datetime
+        
+        # Les valgt person fra form
+        sick_name = request.form.get('sick_person', 'Nils Dagenderpå')
+        
+        # Finn dagens vakt for valgt person
+        day_idx = datetime.now().weekday()
+        if day_idx > 4:
+            day_idx = 0
+        
+        today_shift = "DAG 08-20"  # default
+        for person in state["turnus"]["rows"]:
+            if person["name"] == sick_name:
+                shifts = person.get("shifts", [])
+                if len(shifts) > day_idx:
+                    today_shift = shifts[day_idx]
+                    # Hvis personen har LEDIG eller sykemelding, bruk default
+                    if "LEDIG" in today_shift or "SYK" in today_shift or "FERIE" in today_shift:
+                        today_shift = "DAG 08-20"
+                break
+        
         state["shift_request"]["active"] = True
-        state["shift_request"]["sick_name"] = "Nils Dagenderpå"
-        state["shift_request"]["shift_type"] = "DAG 08-20"
+        state["shift_request"]["sick_name"] = sick_name
+        state["shift_request"]["shift_type"] = today_shift
         state["shift_request"]["winner_name"] = None
 
         # Sjekk om DeepSeek er aktivert
@@ -164,15 +214,15 @@ def admin_trigger():
 
         # Kjør smart matching (Agenten tenker) - med eller uten DeepSeek
         analysis_log = analyze_candidates_for_shift(
-            "Nils Dagenderpå",
-            "DAG 08-20",
+            sick_name,
+            today_shift,
             use_deepseek=use_deepseek,
             api_key=api_key
         )
         state["shift_request"]["agent_analysis"] = analysis_log
 
         # Oppdater minne-databasen
-        mark_sick("Nils Dagenderpå")
+        mark_sick(sick_name)
 
         return redirect(url_for('admin_panel'))
     except Exception as e:
