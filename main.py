@@ -51,9 +51,19 @@ ADMIN_HTML = """
         .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
         button { background: #d32f2f; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold;}
         button:hover { background: #b71c1c; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
         .reset { background: #757575; margin-top: 20px;}
         .reset:hover { background: #616161; }
+        .ai-config { background: #e3f2fd; border: 1px solid #2196f3; padding: 15px; border-radius: 8px; margin: 20px 0; text-align: left; }
+        .ai-config h4 { margin-top: 0; color: #1565c0; }
+        .ai-status { font-size: 12px; padding: 5px 10px; border-radius: 4px; display: inline-block; margin-bottom: 10px; }
+        .ai-live { background: #4caf50; color: white; }
+        .ai-sim { background: #ff9800; color: white; }
+        input[type="password"], input[type="text"] { width: 100%; padding: 10px; margin: 5px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
         .analysis { background: #1e1e1e; color: #00ff00; font-family: monospace; padding: 15px; border-radius: 8px; text-align: left; font-size: 14px; margin-top: 20px; line-height: 1.5; }
+        .btn-ai { background: #2196f3; margin-top: 10px; }
+        .btn-ai:hover { background: #1976d2; }
+        small { color: #666; }
     </style>
 </head>
 <body>
@@ -61,9 +71,33 @@ ADMIN_HTML = """
         <h2>🛠️ Kontrollpanel</h2>
         <p>Tilkoblede sykepleiere: <b>{{ count }}</b></p>
         <p style="color: #666; font-size: 12px;">Totalt i fiktiv database: {{ total_db }} ansatte</p>
+        
+        <!-- AI Configuration Panel -->
+        <div class="ai-config">
+            <h4>🤖 AI Agent Konfigurasjon</h4>
+            {% if ai_mode == 'live' %}
+                <span class="ai-status ai-live">✅ LIVE - DeepSeek AI Aktiv</span>
+                <p style="font-size: 12px; color: #666; margin-top: 5px;">API-nøkkel lagret kun i minnet (ikke persistert)</p>
+            {% else %}
+                <span class="ai-status ai-sim">⚡ SIMULERT AI</span>
+            {% endif %}
+            
+            <form action="/admin/configure-ai" method="POST">
+                <input type="password" name="api_key" placeholder="DeepSeek API-nøkkel (skjult)" {% if ai_mode == 'live' %}value="********" disabled{% endif %}>
+                <small>Limes inn ved demo-start. Lagres kun i RAM.</small>
+                <button type="submit" class="btn-ai" {% if ai_mode == 'live' %}disabled{% endif %}>Aktiver DeepSeek AI</button>
+            </form>
+            
+            {% if ai_mode == 'live' %}
+            <form action="/admin/disable-ai" method="POST" style="margin-top: 10px;">
+                <button type="submit" style="background: #757575; font-size: 14px; padding: 10px;">Bruk Simulert AI i stedet</button>
+            </form>
+            {% endif %}
+        </div>
+        
         <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
         <form action="/admin/trigger" method="POST">
-            <button type="submit">🚨 MELD NILS DAGENDERPÅ SYK</button>
+            <button type="submit" {% if ai_mode == 'live' %}style="background: #4caf50;"{% endif %}>🚨 MELD NILS DAGENDERPÅ SYK</button>
         </form>
         
         {% if analysis %}
@@ -86,10 +120,11 @@ ADMIN_HTML = """
 def admin_panel():
     """Admin panelet Jarl bruker for å trigge krisen."""
     return render_template_string(
-        ADMIN_HTML, 
+        ADMIN_HTML,
         count=len(state["colleagues"]),
         total_db=len(state["turnus"]["rows"]),
-        analysis=state["shift_request"].get("agent_analysis")
+        analysis=state["shift_request"].get("agent_analysis"),
+        ai_mode=state.get("ai_mode", "simulated")
     )
 
 @app.route('/admin/trigger', methods=['POST'])
@@ -99,14 +134,23 @@ def admin_trigger():
     state["shift_request"]["sick_name"] = "Nils Dagenderpå"
     state["shift_request"]["shift_type"] = "DAG 08-20"
     state["shift_request"]["winner_name"] = None
-    
-    # Kjør smart matching (Agenten tenker)
-    analysis_log = analyze_candidates_for_shift("Nils Dagenderpå", "DAG 08-20")
+
+    # Sjekk om DeepSeek er aktivert
+    use_deepseek = state.get("ai_mode") == "live"
+    api_key = state.get("deepseek_api_key") if use_deepseek else None
+
+    # Kjør smart matching (Agenten tenker) - med eller uten DeepSeek
+    analysis_log = analyze_candidates_for_shift(
+        "Nils Dagenderpå",
+        "DAG 08-20",
+        use_deepseek=use_deepseek,
+        api_key=api_key
+    )
     state["shift_request"]["agent_analysis"] = analysis_log
-    
+
     # Oppdater minne-databasen
     mark_sick("Nils Dagenderpå")
-    
+
     return redirect(url_for('admin_panel'))
 
 @app.route('/admin/reset', methods=['POST'])
@@ -116,7 +160,28 @@ def admin_reset():
     state["shift_request"]["sick_name"] = None
     state["shift_request"]["winner_name"] = None
     state["colleagues"] = set()
+    # VI BEHOLDER ai_mode og api_key VED RESET (kun minne)
     reset_turnus()
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/configure-ai', methods=['POST'])
+def admin_configure_ai():
+    """Lagrer API-nøkkel i minnet (aldri på disk/Git)."""
+    api_key = request.form.get('api_key', '').strip()
+    if api_key:
+        state["deepseek_api_key"] = api_key
+        state["ai_mode"] = "live"
+        print("\n🔐 DeepSeek AI aktivert (API-nøkkel lagret i minnet)")
+        print("⚠️  Nøkkelen forsvinner ved server restart\n")
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/disable-ai', methods=['POST'])
+def admin_disable_ai():
+    """Bytter tilbake til simulert AI."""
+    state["ai_mode"] = "simulated"
+    state.pop("deepseek_api_key", None)  # Fjern fra minnet
+    print("\n⚡ Byttet til Simulert AI")
+    print("🗑️  API-nøkkel fjernet fra minnet\n")
     return redirect(url_for('admin_panel'))
 
 

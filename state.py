@@ -5,6 +5,8 @@ Inneholder minne-basert "database" for hele appen med en stor, kompleks ansattli
 
 from datetime import datetime, timedelta
 import random
+import requests
+import json
 
 def get_dates_for_week():
     """Hjelpefunksjon for å finne datoer for gjeldende uke (mandag-fredag)"""
@@ -91,16 +93,140 @@ state = {
     }
 }
 
-def analyze_candidates_for_shift(sick_name, shift_type):
+def analyze_with_deepseek(sick_name, shift_type, db, api_key):
     """
-    Kjernen i demoen: Agenten simulerer en dyp analyse av 30+ ansatte.
-    Returnerer en prioritert kø av kandidater.
+    Kaller ekte DeepSeek AI for å analysere kandidater.
+    Returnerer (analysis_log, candidate_names).
+    """
+    DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
+    
+    # Forbered ansattdata for AI
+    employees_json = json.dumps([{
+        "id": i,
+        "name": p["name"],
+        "role": p["role"],
+        "contract_percentage": p["contract"],
+        "status": p.get("status", "OK"),
+        "shifts": p["shifts"],
+        "exclusion_reason": p.get("exclusion_reason", "")
+    } for i, p in enumerate(db)], ensure_ascii=False, indent=2)
+    
+    system_prompt = """Du er en AI Vaktplanlegger for Vestre Viken Sykehus.
+Din oppgave er å analysere ansattlisten og finne de beste kandidatene for å dekke et akutt vaktskifte.
+
+REGLER (i prioritert rekkefølge):
+1. KOMPETANSE: Kun "Intensivsykepleier" kan ta vakten. Hjelpepleiere utelukkes.
+2. LOVFESTET FRAVÆR: De med status FERIE, PERMISJON, eller SYKT BARN kan ikke jobbe.
+3. ARBEIDSMILJØLOVEN: 
+   - Ingen over 100% stilling (overtid)
+   - 11-timers hviletid mellom vakter (sjekk forrige/neste dag)
+4. VAKT-KOLLISJON: De som allerede jobber samme dag utelukkes.
+5. PRIORITERING: Blant gyldige kandidater, velg høyest stillingsprosent først.
+
+VIKTIG: Returner KUN et JSON-objekt med denne strukturen:
+{
+  "analysis": ["linje 1", "linje 2", ...],
+  "candidates": ["Navn1", "Navn2", "Navn3"]
+}
+"""
+    
+    user_prompt = f"""AKUTT VAKTBEHOV:
+- Sykepleier: {sick_name}
+- Vakt-type: {shift_type}
+
+ANSATTE I DATABASE:
+{employees_json}
+
+Analyser listen og returner JSON med:
+1. Analyse-logg ( forklar hvem du utelukker og hvorfor )
+2. Prioritert liste med kandidat-navn (kun Intensivsykepleiere som kan jobbe)"""
+
+    try:
+        response = requests.post(
+            DEEPSEEK_API_URL,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "deepseek-chat",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                "temperature": 0.1,
+                "max_tokens": 2000
+            },
+            timeout=30
+        )
+        response.raise_for_status()
+        
+        result = response.json()
+        ai_content = result["choices"][0]["message"]["content"]
+        
+        # Parse JSON fra AI-respons
+        # AI kan returnere med markdown ```json ... ``` så vi må rydde
+        clean_content = ai_content.strip()
+        if clean_content.startswith("```json"):
+            clean_content = clean_content[7:]
+        if clean_content.startswith("```"):
+            clean_content = clean_content[3:]
+        if clean_content.endswith("```"):
+            clean_content = clean_content[:-3]
+        clean_content = clean_content.strip()
+        
+        ai_result = json.loads(clean_content)
+        
+        analysis = ["🤖 DEEPSEEK AI ANALYSE"] + ai_result.get("analysis", [])
+        candidates = ai_result.get("candidates", [])
+        
+        # Hvis AI returnerte tom liste, fallback til simulert
+        if not candidates:
+            raise ValueError("AI returnerte ingen kandidater")
+            
+        return analysis, candidates
+        
+    except Exception as e:
+        # Fallback: marker som AI-feil og returner tomme lister
+        analysis = [
+            "⚠️ DeepSeek AI feilet (fallback til simulert)",
+            f"Feil: {str(e)[:50]}...",
+            ""
+        ]
+        return analysis, []
+
+
+def analyze_candidates_for_shift(sick_name, shift_type, use_deepseek=False, api_key=None):
+    """
+    Kjernen i demoen: Agenten analyserer ansatte.
+    Hvis use_deepseek=True og api_key, bruker ekte DeepSeek AI.
+    Ellers: simulert analyse.
     """
     total = len(state["turnus"]["rows"])
     db = state["turnus"]["rows"]
     
+    # PRØV DEEPSEEK FØRST HVIS AKTIVERT
+    if use_deepseek and api_key:
+        try:
+            analysis, candidate_names = analyze_with_deepseek(sick_name, shift_type, db, api_key)
+            
+            # Hvis DeepSeek returnerte kandidater, bruk dem
+            if candidate_names:
+                state["shift_request"]["candidate_queue"] = candidate_names
+                state["shift_request"]["current_candidate_index"] = 0
+                state["shift_request"]["candidate_start_time"] = datetime.now().timestamp()
+                
+                analysis.append("")
+                analysis.append(f"� Ringer Kandidat 1: {candidate_names[0]}...")
+                return analysis
+            # Hvis tom liste, fall gjennom til simulert
+        except Exception as e:
+            # Fortsett til simulert
+            pass
+    
+    # SIMULERT AI (fallback eller standard)
     analysis = []
-    analysis.append(f"🔍 Starter analyse av {total} ansatte for akutt '{shift_type}'-dekning...")
+    analysis.append(f"⚡ SIMULERT AI: Starter analyse av {total} ansatte for akutt '{shift_type}'-dekning...")
     
     # 1. Fjern de med feil kompetanse
     wrong_comp = [p for p in db if p.get("role") == "Hjelpepleier"]
