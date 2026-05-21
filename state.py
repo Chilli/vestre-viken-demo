@@ -468,7 +468,7 @@ def analyze_candidates_for_shift(sick_name, shift_type, use_deepseek=False, api_
         if p.get("role") == "Intensivsykepleier":
             name = p["name"]
             last_shift = p.get("last_shift", "none")
-            excl = p.get("exclusion_reason", "")
+            excl = p.get("exclusion_reason") or ""
             if "11-timers" in excl or "6 timer" in excl or "9 timer" in excl:
                 analysis.append(f"  ✗ {name:<25} | AVVIST - {excl}")
                 rest_violation.append(p)
@@ -491,7 +491,7 @@ def analyze_candidates_for_shift(sick_name, shift_type, use_deepseek=False, api_
         if p.get("role") == "Intensivsykepleier" and not any(x in (p.get("exclusion_reason") or "") for x in ["11-timers", "allerede"]):
             name = p["name"]
             sickleave = p.get("sickleave", "none")
-            excl = p.get("exclusion_reason", "")
+            excl = p.get("exclusion_reason") or ""
             if "Sykemeldt siste 6 måneder" in excl or sickleave == "under6m":
                 analysis.append(f"  ✗ {name:<25} | AVVIST - Sykemeldt siste 6m (AML §10-4)")
                 sickleave_violation.append(p)
@@ -508,7 +508,7 @@ def analyze_candidates_for_shift(sick_name, shift_type, use_deepseek=False, api_
     for p in db:
         name = p["name"]
         status = p.get("status", "Ukjent")
-        excl = p.get("exclusion_reason", "")
+        excl = p.get("exclusion_reason") or ""
         
         if status in ["FERIE", "PERMISJON", "SYKT BARN", "SYK"]:
             leave.append(p)
@@ -520,7 +520,7 @@ def analyze_candidates_for_shift(sick_name, shift_type, use_deepseek=False, api_
                 analysis.append(f"  ✗ {name:<25} | AVVIST - Hjemme med sykt barn")
             elif status == "SYK":
                 analysis.append(f"  ✗ {name:<25} | AVVIST - Sykemeldt")
-        elif "Har allerede vakt" in excl:
+        elif "Har allerede vakt" in (excl or ""):
             working.append(p)
             analysis.append(f"  ✗ {name:<25} | AVVIST - Har vakt i dag ({excl})")
         elif status == "AVAILABLE":
