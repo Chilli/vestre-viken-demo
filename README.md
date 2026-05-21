@@ -17,10 +17,8 @@ Applikasjonen din kjører nå live på internett døgnet rundt! Du trenger verke
 Alt du trenger er å bruke disse lenkene:
 
 ### 1. Forberedelser før publikum kommer
-* Åpne **Storskjermen** (Koble PC-en til projektor) og gå til: `https://vestre-viken-demo.onrender.com/live`
+* Åpne **Storskjermen** (Koble PC-en til projektor) og gå til: `https://vestre-viken-demo.onrender.com/qr` for å la folk scanne seg inn. Trykk deretter på lenken nederst for å gå til selve turnusplanen (`/live`).
 * Åpne **Admin-panelet** (Skjult på din egen PC-skjerm/iPad): `https://vestre-viken-demo.onrender.com/admin`
-* Lag en QR-kode (bruk f.eks qr-code-generator.com) som peker til: `https://vestre-viken-demo.onrender.com/app`
-* Legg denne QR-koden i en PowerPoint-slide for publikum.
 
 ### 2. Selve presentasjonen
 1. **Onboarding:** Be sjefene scanne QR-koden med mobilen sin. 

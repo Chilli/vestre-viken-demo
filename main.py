@@ -4,6 +4,9 @@
 
 import os
 import sys
+import io
+import base64
+import qrcode
 from flask import Flask, request, jsonify, render_template_string, redirect, url_for
 from datetime import datetime
 
@@ -289,9 +292,55 @@ def api_accept():
 # LIVE STORSKJERM
 # ============================================================
 
+@app.route('/qr')
+def show_qr():
+    """Genererer og viser en QR-kode som peker til appen på mobil."""
+    # Finn URL-en til serveren (f.eks https://vestre-viken.onrender.com)
+    host_url = request.host_url.rstrip('/')
+    app_url = f"{host_url}/app"
+    
+    # Generer QR koden
+    qr = qrcode.QRCode(version=1, box_size=10, border=5)
+    qr.add_data(app_url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    
+    # Konverter bildet til base64 for å vise i HTML
+    buffered = io.BytesIO()
+    img.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Koble til Vestre Viken Demo</title>
+        <style>
+            body {{ font-family: -apple-system, sans-serif; background: #f5f7fa; text-align: center; padding-top: 50px; color: #1F4E79; }}
+            h1 {{ font-size: 40px; margin-bottom: 10px; }}
+            p {{ font-size: 24px; color: #666; margin-bottom: 40px; }}
+            .qr-container {{ background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); display: inline-block; }}
+            img {{ width: 400px; height: 400px; }}
+            .url-text {{ margin-top: 20px; font-size: 20px; font-weight: bold; background: #eee; padding: 10px; border-radius: 8px; display: inline-block;}}
+        </style>
+    </head>
+    <body>
+        <h1>📲 Bli med som Sykepleier</h1>
+        <p>Scan QR-koden med mobilkameraet ditt for å koble deg til systemet.</p>
+        <div class="qr-container">
+            <img src="data:image/png;base64,{img_str}" alt="QR Code">
+            <br>
+            <div class="url-text">{app_url}</div>
+        </div>
+        <p style="margin-top: 40px;"><a href="/live" style="color: #1F4E79; text-decoration: none; font-size: 18px; font-weight: bold;">➡️ Gå til Live Turnusplan (Storskjerm)</a></p>
+    </body>
+    </html>
+    """
+    return render_template_string(html)
+
 @app.route('/live')
 def live_dashboard():
-    """Live HTML-visning av Excel-turnusen (Auto-refresh)"""
+    """Live HTML-visning av turnusen (Auto-refresh)"""
     return render_live_dashboard()
 
 @app.route('/')
