@@ -67,10 +67,15 @@ HTML_TEMPLATE = """
         }
         
         /* Fargekoder for vakter */
-        .vakt-dag { background-color: #E8F5E9; color: #2E7D32; }
-        .vakt-natt { background-color: #E3F2FD; color: #1565C0; }
-        .vakt-kveld { background-color: #FFF3E0; color: #E65100; }
-        .vakt-fri { background-color: #F5F5F5; color: #757575; }
+        .vakt-dag { background-color: #E8F5E9; color: #2E7D32; }       /* DAG 07-15 */
+        .vakt-natt { background-color: #1a237e; color: #e8eaf6; }       /* NATT 23-07 - mørk blå med lys tekst */
+        .vakt-kveld { background-color: #E65100; color: white; }        /* KVELD 14-23 - oransje med hvit tekst */
+        .vakt-12t { background-color: #6a1b9a; color: white; }        /* 12T - lilla med hvit tekst */
+        .vakt-ledig { background-color: #F5F5F5; color: #757575; }       /* LEDIG - grå */
+        .vakt-fri { background-color: #F5F5F5; color: #757575; }       /* FRI - bakoverkompatibel */
+        .vakt-permisjon { background-color: #9c27b0; color: white; }    /* Permisjon */
+        .vakt-ferie { background-color: #ff9800; color: white; }        /* Ferie */
+        .vakt-sykemeldt { background-color: #f44336; color: white; }    /* Sykemeldt */
         
         /* MAGIEN: Live endringer */
         .vakt-syk { 
@@ -143,9 +148,11 @@ HTML_TEMPLATE = """
             {% endfor %}
         </table>
         <div class="legend">
-            <div class="legend-item"><div class="color-box vakt-dag"></div> DAG 08-20</div>
-            <div class="legend-item"><div class="color-box vakt-natt"></div> NATT 20-08</div>
-            <div class="legend-item"><div class="color-box vakt-kveld"></div> KVELD 14-22</div>
+            <div class="legend-item"><div class="color-box vakt-dag"></div> DAG 07-15</div>
+            <div class="legend-item"><div class="color-box vakt-kveld"></div> KVELD 14-23</div>
+            <div class="legend-item"><div class="color-box vakt-natt"></div> NATT 23-07</div>
+            <div class="legend-item"><div class="color-box vakt-12t"></div> 12T VAKT</div>
+            <div class="legend-item"><div class="color-box vakt-ledig"></div> LEDIG</div>
             <div class="legend-item"><div class="color-box vakt-syk" style="animation:none;"></div> SYK</div>
             <div class="legend-item"><div class="color-box vakt-vikar" style="animation:none;"></div> VIKAR</div>
         </div>
@@ -157,18 +164,32 @@ HTML_TEMPLATE = """
 def get_css_class(val):
     """Finner riktig CSS-klasse basert på celleteksten."""
     val_str = str(val).upper() if val else ""
-    if "SYK" in val_str:
+    if "SYK" in val_str or "❌ SYK" in val_str:
         return "vakt-syk"
-    if "VIKAR" in val_str:
+    if "VIKAR" in val_str or "✅ VIKAR" in val_str:
         return "vakt-vikar"
-    if "DAG" in val_str:
-        return "vakt-dag"
-    if "NATT" in val_str:
-        return "vakt-natt"
+    # 12-timers vakter (lilla)
+    if "12T" in val_str:
+        return "vakt-12t"
+    # Kveld (oransje)
     if "KVLD" in val_str or "KVELD" in val_str:
         return "vakt-kveld"
-    if "FRI" in val_str:
-        return "vakt-fri"
+    # Natt (mørk blå) - sjekk etter kveld for å ikke forveksle
+    if "NATT" in val_str:
+        return "vakt-natt"
+    # Dag (grønn)
+    if "DAG" in val_str:
+        return "vakt-dag"
+    # Permisjon/ferie/sykemeldt
+    if "PERM" in val_str or "FORELDREPERM" in val_str:
+        return "vakt-permisjon"
+    if "FERIE" in val_str:
+        return "vakt-ferie"
+    if "SYKEMELDT" in val_str or "HJEMME SYKT" in val_str:
+        return "vakt-sykemeldt"
+    # Ledig/Fri (grå)
+    if "LEDIG" in val_str or "FRI" in val_str:
+        return "vakt-ledig"
     return ""
 
 

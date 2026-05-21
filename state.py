@@ -18,55 +18,104 @@ def get_dates_for_week():
     return dates
 
 def generate_complex_database():
-    """Lager en stor fiktiv database med ansatte, stillingsprosent og restriksjoner."""
-    
-    # De 3 publikummerne (Sjefene som skal få vakten til slutt)
-    # Rangert etter optimalitet: Mette (80%) > Anton (75%) > Wes (60%)
+    """Lager realistiske turnuser for sykepleiere med dag/kveld/natt-vakter."""
+
+    # Realistiske turnusmønstre (mandag-fredag)
+    # DAG 07:00-15:30 / KVELD 14:30-23:00 / NATT 23:00-07:30 / 12T DAG 07:00-19:00 / 12T NATT 19:00-07:00
+
+    # De 3 publikummerne - ulike turnusmønstre
     audience = [
-        {"name": "Mette Prada Hansen", "role": "Intensivsykepleier", "contract": 80, "status": "AVAILABLE", "shifts": ["FRI", "DAG 08-20", "FRI", "FRI", "KVELD 14-22"]},
-        {"name": "Dr. Anton Graff", "role": "Intensivsykepleier", "contract": 75, "status": "AVAILABLE", "shifts": ["FRI", "KVELD 14-22", "FRI", "DAG 08-20", "NATT 20-08"]},
-        {"name": "Wes Side Story", "role": "Intensivsykepleier", "contract": 60, "status": "AVAILABLE", "shifts": ["FRI", "DAG 08-20", "FRI", "NATT 20-08", "FRI"]},
+        # Mette: 3-skift klassisk turnus
+        {"name": "Mette Prada Hansen", "role": "Intensivsykepleier", "status": "AVAILABLE",
+         "shifts": ["NATT 23-07", "LEDIG", "DAG 07-15", "KVELD 14-23", "LEDIG"],
+         "turnus_type": "3-skift"},
+        # Anton: 12-timers turnus (dager)
+        {"name": "Dr. Anton Graff", "role": "Intensivsykepleier", "status": "AVAILABLE",
+         "shifts": ["12T DAG 07-19", "LEDIG", "12T NATT 19-07", "LEDIG", "12T DAG 07-19"],
+         "turnus_type": "12-timers"},
+        # Wes: Kun dagvakter (eldre/senior)
+        {"name": "Wes Side Story", "role": "Intensivsykepleier", "status": "AVAILABLE",
+         "shifts": ["DAG 07-15", "DAG 07-15", "LEDIG", "DAG 07-15", "DAG 07-15"],
+         "turnus_type": "dag-kun"},
     ]
-    
-    # Den som blir syk
+
+    # Den som blir syk - 3-skift turnus
     sick_person = [
-        {"name": "Nils Dagenderpå", "role": "Intensivsykepleier", "contract": 100, "status": "OK", "shifts": ["DAG 08-20", "NATT 20-08", "FRI", "DAG 08-20", "DAG 08-20"]}
+        {"name": "Nils Dagenderpå", "role": "Intensivsykepleier", "status": "OK",
+         "shifts": ["DAG 07-15", "KVELD 14-23", "LEDIG", "NATT 23-07", "DAG 07-15"],
+         "turnus_type": "3-skift"}
     ]
-    
-    # Fyll på med masse fiktive folk som Agenten må filtrere UT
-    fillers_names = [
-        "Kari Vaktmester", "Ole Tidsklemme", "Lise Trøtt", "Bernt Overtid", "Siri Småbarnsmor", 
-        "Jonas Helse", "Nina Turnus", "Per Kaffe", "Trude Nattevakt", "Simen Stress",
-        "Anne Vikar", "Petter Gips", "Mari Sprøyte", "Geir Skalpell", "Kine Plaster",
-        "Jan EKG", "Turid Puls", "Magnus Blod", "Silje Sår", "Bjarne Pille",
-        "Hanne Seng", "Rune Rullestol", "Vilde Krykke", "Knut Kateter", "Gro Bandasje"
+
+    # Fyll på med realistiske turnuser
+    fillers_data = [
+        # Intensivsykepleiere med ulike turnuser
+        ("Kari Vaktmester", "3-skift", ["DAG 07-15", "KVELD 14-23", "NATT 23-07", "LEDIG", "DAG 07-15"]),
+        ("Ole Tidsklemme", "3-skift", ["LEDIG", "DAG 07-15", "KVELD 14-23", "LEDIG", "NATT 23-07"]),
+        ("Lise Trøtt", "3-skift", ["NATT 23-07", "LEDIG", "DAG 07-15", "KVELD 14-23", "LEDIG"]),
+        ("Bernt Overtid", "12-timers", ["12T DAG 07-19", "LEDIG", "12T DAG 07-19", "12T NATT 19-07", "LEDIG"]),
+        ("Siri Småbarnsmor", "dag-kun", ["DAG 07-15", "DAG 07-15", "LEDIG", "DAG 07-15", "LEDIG"]),
+        ("Jonas Helse", "3-skift", ["KVELD 14-23", "NATT 23-07", "LEDIG", "DAG 07-15", "KVELD 14-23"]),
+        ("Nina Turnus", "12-timers", ["LEDIG", "12T NATT 19-07", "12T DAG 07-19", "LEDIG", "12T DAG 07-19"]),
+        ("Per Kaffe", "3-skift", ["DAG 07-15", "LEDIG", "NATT 23-07", "LEDIG", "DAG 07-15"]),
+        ("Trude Nattevakt", "natt-preferanse", ["NATT 23-07", "NATT 23-07", "LEDIG", "NATT 23-07", "LEDIG"]),
+        ("Simen Stress", "3-skift", ["KVELD 14-23", "DAG 07-15", "LEDIG", "KVELD 14-23", "NATT 23-07"]),
+        # Andre roller (ikke intensiv)
+        ("Anne Vikar", "Vernepleier", "3-skift", ["DAG 07-15", "KVELD 14-23", "LEDIG", "DAG 07-15", "KVELD 14-23"]),
+        ("Petter Gips", "Helsefagarbeider", "dag-kun", ["DAG 07-15", "DAG 07-15", "DAG 07-15", "LEDIG", "DAG 07-15"]),
+        ("Mari Sprøyte", "Sykepleier", "3-skift", ["LEDIG", "NATT 23-07", "DAG 07-15", "KVELD 14-23", "LEDIG"]),
+        ("Geir Skalpell", "Vernepleier", "12-timers", ["12T DAG 07-19", "LEDIG", "LEDIG", "12T DAG 07-19", "12T NATT 19-07"]),
+        # Permisjon/ferie
+        ("Kine Plaster", "Intensivsykepleier", "PERMISJON", ["FORELDREPERM", "FORELDREPERM", "FORELDREPERM", "FORELDREPERM", "FORELDREPERM"]),
+        ("Jan EKG", "Intensivsykepleier", "FERIE", ["FERIE", "FERIE", "FERIE", "FERIE", "FERIE"]),
+        # AML-brudd (for kort hviletid)
+        ("Turid Puls", "Intensivsykepleier", "3-skift-kort-hvile", ["NATT 23-07", "LEDIG", "DAG 07-15", "KVELD 14-23", "DAG 07-15"]),
+        ("Magnus Blod", "Intensivsykepleier", "12-timers-tett", ["12T NATT 19-07", "12T DAG 07-19", "LEDIG", "12T NATT 19-07", "LEDIG"]),
+        # Sykemeldt/sykt barn
+        ("Silje Sår", "Intensivsykepleier", "SYK", ["SYKEMELDT", "SYKEMELDT", "LEDIG", "SYKEMELDT", "SYKEMELDT"]),
+        ("Bjarne Pille", "Intensivsykepleier", "SYKT BARN", ["HJEMME SYKT BARN", "HJEMME SYKT BARN", "LEDIG", "HJEMME SYKT BARN", "HJEMME SYKT BARN"]),
     ]
-    
+
     fillers = []
-    for name in fillers_names:
-        # Lag ulike grunner til at de ikke kan ta vakten i dag
-        reasons = [
-            ("Overstiger 100% (Arbeidsmiljøloven)", 100, "OK", ["DAG 08-20", "DAG 08-20", "DAG 08-20", "DAG 08-20", "DAG 08-20"]),
-            ("Brudd på 11-timers hviletid", 80, "OK", ["NATT 20-08", "FRI", "DAG 08-20", "FRI", "DAG 08-20"]),
-            ("I foreldrepermisjon", 100, "PERMISJON", ["PERMISJON", "PERMISJON", "PERMISJON", "PERMISJON", "PERMISJON"]),
-            ("Ferieavvikling", 100, "FERIE", ["FERIE", "FERIE", "FERIE", "FERIE", "FERIE"]),
-            ("Feil kompetanse (Hjelpepleier)", 80, "OK", ["FRI", "FRI", "DAG 08-20", "DAG 08-20", "DAG 08-20"]),
-            ("Egenmelding Sykt Barn", 80, "SYKT BARN", ["SYKT BARN", "SYKT BARN", "DAG 08-20", "FRI", "FRI"]),
-            ("Har allerede vakt i dag", 80, "OK", ["KVELD 14-22", "FRI", "FRI", "DAG 08-20", "DAG 08-20"])
-        ]
-        
-        reason, contract, status, shifts = random.choice(reasons)
-        role = "Hjelpepleier" if "kompetanse" in reason else "Sykepleier"
-        
+    for data in fillers_data:
+        if len(data) == 4:
+            name, role, turnus_type, shifts = data
+        else:
+            name, turnus_type, shifts = data
+            role = "Intensivsykepleier" if turnus_type not in ["Vernepleier", "Helsefagarbeider", "Sykepleier"] else turnus_type
+            turnus_type = "standard" if turnus_type in ["Vernepleier", "Helsefagarbeider", "Sykepleier"] else turnus_type
+
+        # Bestem status og exclusion_reason basert på turnus_type
+        status = "AVAILABLE"
+        exclusion_reason = None
+
+        if turnus_type == "PERMISJON" or "FORELDREPERM" in shifts[0]:
+            status = "PERMISJON"
+        elif turnus_type == "FERIE" or "FERIE" in shifts[0]:
+            status = "FERIE"
+        elif turnus_type == "SYK" or "SYKEMELDT" in shifts[0]:
+            status = "SYK"
+        elif turnus_type == "SYKT BARN" or "HJEMME SYKT BARN" in shifts[0]:
+            status = "SYKT BARN"
+        # Sjekk for AML-brudd (tette vakter)
+        elif turnus_type == "3-skift-kort-hvile":
+            # Natt til dag uten nok hvile = AML brudd
+            exclusion_reason = "Brudd på 11-timers hviletid (natt til dag)"
+        elif turnus_type == "12-timers-tett":
+            # Natt til 12t dag = for tett
+            exclusion_reason = "Brudd på 11-timers hviletid (12t natt til 12t dag)"
+        # Sjekk for feil kompetanse
+        elif role in ["Vernepleier", "Helsefagarbeider"]:
+            exclusion_reason = f"{role} - feil spesialisering for intensiv"
+
         fillers.append({
             "name": name,
             "role": role,
-            "contract": contract,
             "status": status,
             "shifts": shifts,
-            "exclusion_reason": reason
+            "turnus_type": turnus_type,
+            "exclusion_reason": exclusion_reason
         })
-        
+
     return sick_person + audience + fillers
 
 
@@ -197,14 +246,48 @@ Analyser listen og returner JSON med:
         return analysis, []
 
 
+def generate_realistic_shifts_for_participant(participant_name, profile):
+    """Genererer realistisk turnus for en deltaker basert på dagens dag."""
+    import random
+
+    # Få dagens indeks (0=mandag, 4=fredag)
+    today_idx = datetime.now().weekday()
+    if today_idx > 4:
+        today_idx = 0  # Weekend -> mandag
+
+    # Ulike turnusmønstre
+    turnus_templates = [
+        # 3-skift klassisk
+        ["DAG 07-15", "KVELD 14-23", "NATT 23-07", "LEDIG", "DAG 07-15"],
+        ["NATT 23-07", "LEDIG", "DAG 07-15", "KVELD 14-23", "LEDIG"],
+        ["LEDIG", "DAG 07-15", "KVELD 14-23", "LEDIG", "NATT 23-07"],
+        # 12-timers
+        ["12T DAG 07-19", "LEDIG", "12T NATT 19-07", "LEDIG", "12T DAG 07-19"],
+        ["LEDIG", "12T NATT 19-07", "12T DAG 07-19", "LEDIG", "12T DAG 07-19"],
+        # Kun dag
+        ["DAG 07-15", "DAG 07-15", "LEDIG", "DAG 07-15", "DAG 07-15"],
+        ["DAG 07-15", "LEDIG", "DAG 07-15", "DAG 07-15", "LEDIG"],
+        # Natt-preferanse
+        ["NATT 23-07", "NATT 23-07", "LEDIG", "NATT 23-07", "LEDIG"],
+    ]
+
+    # Velg tilfeldig turnus basert på navn (konsistent)
+    random.seed(participant_name)
+    shifts = random.choice(turnus_templates)
+    random.seed()  # Reset
+
+    return shifts
+
+
 def build_database_from_profiles():
     """Bygger dynamisk database fra deltaker-profiler + fyller på med fiktive folk."""
     profiles = state.get("profiles", {})
 
-    # Start med den syke personen (uten contract felt)
+    # Start med den syke personen - realistisk 3-skift turnus
     db = [
         {"name": "Nils Dagenderpå", "role": "Intensivsykepleier", "status": "OK",
-         "shifts": ["DAG 08-20", "NATT 20-08", "FRI", "DAG 08-20", "DAG 08-20"]}
+         "shifts": ["DAG 07-15", "KVELD 14-23", "LEDIG", "NATT 23-07", "DAG 07-15"],
+         "turnus_type": "3-skift"}
     ]
 
     # Legg til deltakere som har registrert seg
@@ -248,11 +331,14 @@ def build_database_from_profiles():
         if profile.get("has_shift", False):
             exclusion_reason = "Har allerede vakt i dag (kollisjon)"
 
+        # Generer realistisk turnus for deltakeren
+        shifts = generate_realistic_shifts_for_participant(name, profile)
+
         person = {
             "name": name,
             "role": role,
             "status": status,
-            "shifts": ["FRI", "FRI", "FRI", "FRI", "FRI"],  # Standard ledig
+            "shifts": shifts,
             "exclusion_reason": exclusion_reason,
             "priority_note": priority_note,
             "from_participant": True
