@@ -201,9 +201,9 @@ def build_database_from_profiles():
     """Bygger dynamisk database fra deltaker-profiler + fyller på med fiktive folk."""
     profiles = state.get("profiles", {})
 
-    # Start med den syke personen
+    # Start med den syke personen (uten contract felt)
     db = [
-        {"name": "Nils Dagenderpå", "role": "Intensivsykepleier", "contract": 100, "status": "OK",
+        {"name": "Nils Dagenderpå", "role": "Intensivsykepleier", "status": "OK",
          "shifts": ["DAG 08-20", "NATT 20-08", "FRI", "DAG 08-20", "DAG 08-20"]}
     ]
 
@@ -211,26 +211,51 @@ def build_database_from_profiles():
     for name, profile in profiles.items():
         # Bygg exclusion_reason basert på profilen
         exclusion_reason = None
-        if profile.get("has_shift", False):
-            exclusion_reason = "Har allerede vakt i dag"
-        elif profile.get("status") == "FERIE":
+        priority_note = None
+
+        # Sjekk kompetanse
+        role = profile.get("role")
+        if role == "Intensivsykepleier":
+            priority_note = "Godkjent kompetanse"
+        elif role == "Sykepleier":
+            exclusion_reason = "Sykepleier må godkjennes - ikke autorisert for intensiv"
+        elif role == "Vernepleier":
+            exclusion_reason = "Vernepleier har feil spesialisering"
+        else:
+            exclusion_reason = "Mangler fagautorisasjon"
+
+        # Sjekk status
+        status = profile.get("status")
+        if status == "FERIE":
             exclusion_reason = "Ferieavvikling"
-        elif profile.get("status") == "PERMISJON":
+        elif status == "PERMISJON":
             exclusion_reason = "I foreldrepermisjon"
-        elif profile.get("status") in ["SYKT BARN", "SYK"]:
+        elif status in ["SYKT BARN", "SYK"]:
             exclusion_reason = "Egenmelding/Sykt barn"
-        elif profile.get("contract", 0) >= 100:
-            exclusion_reason = "Overstiger 100% (Arbeidsmiljøloven)"
-        elif profile.get("role") != "Intensivsykepleier":
-            exclusion_reason = "Feil kompetanse"
+
+        # Sjekk hviletid (11-timers regel)
+        last_shift = profile.get("last_shift")
+        if last_shift == "recent":
+            exclusion_reason = "Kun 6 timer siden forrige vakt (brudd på 11-timers hvileregel)"
+        elif last_shift == "yesterday":
+            exclusion_reason = "9 timer siden forrige vakt (brudd på 11-timers hvileregel)"
+
+        # Sjekk sykemeldingshistorikk
+        if profile.get("sickleave") == "under6m":
+            exclusion_reason = "Sykemeldt siste 6 måneder (kan ikke ta overtid etter AML)"
+
+        # Sjekk om har vakt allerede
+        if profile.get("has_shift", False):
+            exclusion_reason = "Har allerede vakt i dag (kollisjon)"
 
         person = {
             "name": name,
-            "role": profile.get("role", "Sykepleier"),
-            "contract": profile.get("contract", 100),
-            "status": profile.get("status", "AVAILABLE"),
+            "role": role,
+            "status": status,
             "shifts": ["FRI", "FRI", "FRI", "FRI", "FRI"],  # Standard ledig
-            "exclusion_reason": exclusion_reason
+            "exclusion_reason": exclusion_reason,
+            "priority_note": priority_note,
+            "from_participant": True
         }
         db.append(person)
 
@@ -238,32 +263,49 @@ def build_database_from_profiles():
     existing_names = {p["name"] for p in db}
     filler_names = [
         "Kari Vaktmester", "Ole Tidsklemme", "Lise Trøtt", "Bernt Overtid",
-        "Siri Småbarnsmor", "Jonas Helse", "Nina Turnus", "Per Kaffe",
-        "Trude Nattevakt", "Simen Stress", "Anne Vikar", "Petter Gips"
+        "Siri Småbarnsmor", "Jonas Helse", "Nina Turnus", "Per Kaffe"
+    ]
+
+    reasons_pool = [
+        "Brudd på 11-timers hviletid (vakt i natt 20-08)",
+        "Sykemeldt siste 6 måneder (kan ikke ta overtid)",
+        "I foreldrepermisjon",
+        "Ferieavvikling",
+        "Vernepleier - feil spesialisering",
+        "Helsefagarbeider - mangler autorisasjon",
+        "Egenmelding/Sykt barn",
+        "Har allerede vakt i dag (DAG 08-20)"
     ]
 
     for name in filler_names:
         if name not in existing_names:
-            # Lag tilfeldig profil for fyllere
-            reasons = [
-                ("Overstiger 100% (Arbeidsmiljøloven)", 100, "OK", ["DAG 08-20"] * 5),
-                ("Brudd på 11-timers hviletid", 80, "OK", ["NATT 20-08", "FRI", "DAG 08-20", "FRI", "DAG 08-20"]),
-                ("I foreldrepermisjon", 100, "PERMISJON", ["PERMISJON"] * 5),
-                ("Ferieavvikling", 100, "FERIE", ["FERIE"] * 5),
-                ("Feil kompetanse (Hjelpepleier)", 80, "OK", ["FRI"] * 5),
-                ("Egenmelding Sykt Barn", 80, "SYKT BARN", ["SYKT BARN"] * 5),
-                ("Har allerede vakt i dag", 80, "OK", ["KVELD 14-22", "FRI", "FRI", "DAG 08-20", "DAG 08-20"])
-            ]
-            reason, contract, status, shifts = random.choice(reasons)
-            role = "Hjelpepleier" if "kompetanse" in reason else "Sykepleier"
+            reason = random.choice(reasons_pool)
+            # Bestem rolle basert på årsak
+            if "Vernepleier" in reason:
+                role = "Vernepleier"
+                status = "AVAILABLE"
+            elif "Helsefagarbeider" in reason:
+                role = "Helsefagarbeider"
+                status = "AVAILABLE"
+            elif "foreldrepermisjon" in reason:
+                role = "Intensivsykepleier"
+                status = "PERMISJON"
+            elif "Ferie" in reason:
+                role = "Intensivsykepleier"
+                status = "FERIE"
+            elif "Sykt barn" in reason or "Egenmelding" in reason:
+                role = "Intensivsykepleier"
+                status = "SYKT BARN"
+            else:
+                role = "Intensivsykepleier"
+                status = "OK"
 
             db.append({
                 "name": name,
                 "role": role,
-                "contract": contract,
                 "status": status,
-                "shifts": shifts,
-                "exclusion_reason": reason
+                "shifts": ["FRI", "FRI", "FRI", "FRI", "FRI"],
+                "exclusion_reason": reason if status == "OK" else None
             })
 
     return db
@@ -307,25 +349,29 @@ def analyze_candidates_for_shift(sick_name, shift_type, use_deepseek=False, api_
     analysis.append(f"⚡ SIMULERT AI: Starter analyse av {total} ansatte for akutt '{shift_type}'-dekning...")
     analysis.append(f"   (Inkluderer {len(state.get('profiles', {}))} deltakere med egne variabler)")
 
-    # 1. Filtreringsregler
+    # 1. Filtreringsregler - telling
     wrong_comp = [p for p in db if p.get("role") != "Intensivsykepleier"]
-    analysis.append(f"❌ Utelukket {len(wrong_comp)} ansatte: Feil kompetanse (krever Intensivsykepleier).")
+    analysis.append(f"❌ Utelukket {len(wrong_comp)} ansatte: Feil kompetanse/mangler autorisasjon.")
 
     leave = [p for p in db if p.get("status") in ["FERIE", "PERMISJON", "SYKT BARN", "SYK"]]
-    analysis.append(f"❌ Utelukket {len(leave)} ansatte: Lovfestet fravær (Ferie/Permisjon/Sykt barn/Syk).")
+    analysis.append(f"❌ Utelukket {len(leave)} ansatte: Lovfestet fravær (Ferie/Permisjon/Sykdom).")
 
-    aml = [p for p in db if p.get("exclusion_reason", "").startswith("Overstiger") or p.get("exclusion_reason", "").startswith("Brudd")]
-    analysis.append(f"❌ Utelukket {len(aml)} ansatte: AML-brudd (11-timers hvile / 100% overtid).")
+    # 11-timers hvileregel (brudd)
+    rest_violation = [p for p in db if "11-timers" in (p.get("exclusion_reason") or "")]
+    analysis.append(f"❌ Utelukket {len(rest_violation)} ansatte: Brudd på 11-timers hvileregel.")
+
+    # Sykemelding siste 6m
+    sickleave_violation = [p for p in db if "Sykemeldt siste 6 måneder" in (p.get("exclusion_reason") or "")]
+    analysis.append(f"❌ Utelukket {len(sickleave_violation)} ansatte: Sykemeldt siste 6m (AML).")
 
     working = [p for p in db if p.get("exclusion_reason", "").startswith("Har allerede")]
-    analysis.append(f"❌ Utelukket {len(working)} ansatte: Tildelt annen vakt (kollisjon).")
+    analysis.append(f"❌ Utelukket {len(working)} ansatte: Har allerede vakt (kollisjon).")
 
     # 2. Finn kvalifiserte kandidater
     candidates = [p for p in db if p.get("status") == "AVAILABLE"
                   and p.get("role") == "Intensivsykepleier"
                   and not p.get("exclusion_reason")]
-    candidates.sort(key=lambda x: x["contract"], reverse=True)
-
+    # Ingen prioritet basert på stillingsprosent - førstemann til mølla
     candidate_names = [c["name"] for c in candidates]
 
     # 3. ESKALERING: Hvis ingen kandidater, kontakt bemanningsbyrå
@@ -339,7 +385,6 @@ def analyze_candidates_for_shift(sick_name, shift_type, use_deepseek=False, api_
         agency_worker = {
             "name": agency_name,
             "role": "Intensivsykepleier",
-            "contract": 0,  # 0% = vikar, tilgjengelig for alt
             "status": "AVAILABLE",
             "shifts": ["FRI", "FRI", "FRI", "FRI", "FRI"],
             "exclusion_reason": None,
@@ -363,9 +408,9 @@ def analyze_candidates_for_shift(sick_name, shift_type, use_deepseek=False, api_
     else:
         analysis.append(f"")
         analysis.append(f"✅ FANT {len(candidates)} KVALIFISERTE KANDIDATER.")
-        analysis.append(f"📊 Prioritering (høyest stillingsprosent først):")
+        analysis.append(f"📊 Kandidater (førstemann til mølla):")
         for i, c in enumerate(candidates):
-            analysis.append(f"   {i+1}. {c['name']} ({c['contract']}% stilling)")
+            analysis.append(f"   {i+1}. {c['name']}")
 
         analysis.append(f"")
         analysis.append(f"📱 Ringer Kandidat 1: {candidates[0]['name']}...")
@@ -646,11 +691,16 @@ def generate_reasoning_report():
         status_color = status_colors.get(profile.get("status"), "#666")
         status_text = profile.get("status", "Ukjent")
 
+        # Sjekk ekstra felt
+        rest_status = "✅ Hvile OK" if profile.get('last_shift') == 'long_ago' else ("⚠️ 9t siden" if profile.get('last_shift') == 'yesterday' else "❌ Kun 6t")
+        sick_status = "✅ Sykemelding OK" if profile.get('sickleave') != 'under6m' else "❌ Sykemeldt <6m"
+
         html += f"""        <div class="candidate" style="border-left: 4px solid {status_color}; margin: 0 -20px; padding-left: 16px;">
             <div>
                 <strong>{name}</strong><br>
-                <small>{role_icon} {profile.get('role', '?')} | 📊 {profile.get('contract', '?')}% | <span style="color: {status_color}">●</span> {status_text}</small>
-                {f'<br><small style="color: #f44336;">⚠️ Har allerede vakt</small>' if profile.get('has_shift') else ''}
+                <small>{role_icon} {profile.get('role', '?')} | <span style="color: {status_color}">●</span> {status_text}</small><br>
+                <small>{rest_status} | {sick_status}</small>
+                {f'<br><small style="color: #f44336;">❌ Har allerede vakt</small>' if profile.get('has_shift') else ''}
             </div>
         </div>
 """
@@ -662,7 +712,7 @@ def generate_reasoning_report():
         <p><strong>Totalt antall ansatte analysert:</strong> {len(turnus['rows'])}</p>
         <p><strong>Kvalifiserte kandidater funnet:</strong> {len(candidates)}</p>
         <p><strong>Deltakere med egne variabler:</strong> {len(profiles)}</p>
-        <p><strong>Filtreringskriterier brukt:</strong> 6 (Kompetanse, Lovfestet fravær, AML 100%, AML hviletid, Vakt-kollisjon, Stillingsprosent)</p>
+        <p><strong>Filtreringskriterier brukt:</strong> 5 (Kompetanse/Autorisasjon, Lovfestet fravær, 11-timers hvileregel, Sykemelding <6m, Vakt-kollisjon)</p>
         {f'<p style="color: #ff9800; margin-top: 10px;"><strong>⚠️ Eskalering:</strong> Bemanningsbyrå ble kontaktet</p>' if escalation else ''}
         {f'<p style="color: #4caf50; margin-top: 5px;"><strong>✅ Vikar fra byrå:</strong> {agency_worker}</p>' if agency_worker else ''}
     </div>

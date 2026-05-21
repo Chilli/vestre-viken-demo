@@ -245,25 +245,15 @@ MOBILE_APP_HTML = """
         </div>
         
         <div class="form-group">
-            <label for="reg-role">Rolle / Kompetanse</label>
+            <label for="reg-role">Kompetanse / Fagautorisasjon</label>
             <select id="reg-role">
-                <option value="Intensivsykepleier">Intensivsykepleier ✅ (Kan ta vakt)</option>
-                <option value="Hjelpepleier">Hjelpepleier ❌ (Feil kompetanse)</option>
-                <option value="Assistent">Assistent ❌ (Feil kompetanse)</option>
+                <option value="Intensivsykepleier">Intensivsykepleier ✅ (Godkjent)</option>
+                <option value="Sykepleier">Sykepleier ⚠️ (Må godkjennes)</option>
+                <option value="Vernepleier">Vernepleier ❌ (Feil spesialisering)</option>
+                <option value="Helsefagarbeider">Helsefagarbeider ❌ (Mangler autorisasjon)</option>
             </select>
         </div>
-        
-        <div class="form-group">
-            <label for="reg-contract">Stillingsprosent</label>
-            <select id="reg-contract">
-                <option value="100">100% (Kan ikke overtid > 100%)</option>
-                <option value="80">80% (Prioritet 1)</option>
-                <option value="60" selected>60% (Prioritet 2)</option>
-                <option value="40">40% (Prioritet 3)</option>
-                <option value="20">20% (Prioritet 4)</option>
-            </select>
-        </div>
-        
+
         <div class="form-group">
             <label for="reg-status">Din status i dag</label>
             <select id="reg-status">
@@ -274,12 +264,30 @@ MOBILE_APP_HTML = """
                 <option value="SYK">🤕 Syk selv</option>
             </select>
         </div>
-        
+
+        <div class="form-group">
+            <label for="reg-last-shift">Når var din siste vakt?</label>
+            <select id="reg-last-shift">
+                <option value="long_ago" selected>For 2 dager siden ✅ (Nok hvile)</option>
+                <option value="yesterday">I går kl 14-22 ⚠️ (9 timer siden)</option>
+                <option value="recent">I natt kl 20-08 ❌ (Kun 6 timer siden)</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="reg-sickleave">Sykemeldingshistorikk</label>
+            <select id="reg-sickleave">
+                <option value="none" selected>Ingen sykemelding siste 2 år ✅</option>
+                <option value="over6m">Sykemeldt >6 måneder siden ✅</option>
+                <option value="under6m">Sykemeldt siste 6 måneder ❌ (AML-brudd)</option>
+            </select>
+        </div>
+
         <div class="form-group">
             <label for="reg-has-shift">Har du allerede vakt i dag?</label>
             <select id="reg-has-shift">
                 <option value="no" selected>Nei, jeg er ledig</option>
-                <option value="yes">Ja, jeg jobber allerede</option>
+                <option value="yes">Ja, jeg jobber allerede ❌</option>
             </select>
         </div>
         
@@ -346,8 +354,9 @@ MOBILE_APP_HTML = """
             myProfile = {
                 name: name,
                 role: document.getElementById("reg-role").value,
-                contract: parseInt(document.getElementById("reg-contract").value),
                 status: document.getElementById("reg-status").value,
+                last_shift: document.getElementById("reg-last-shift").value,
+                sickleave: document.getElementById("reg-sickleave").value,
                 has_shift: document.getElementById("reg-has-shift").value === "yes"
             };
 
@@ -364,12 +373,13 @@ MOBILE_APP_HTML = """
 
             // Vis profil-oppsummering
             let statusEmoji = {"AVAILABLE": "🟢", "FERIE": "🏖️", "PERMISJON": "👶", "SYKT BARN": "🤒", "SYK": "🤕"}[myProfile.status] || "⚪";
-            let roleIcon = myProfile.role === "Intensivsykepleier" ? "✅" : "❌";
+            let roleIcon = myProfile.role === "Intensivsykepleier" ? "✅" : (myProfile.role === "Sykepleier" ? "⚠️" : "❌");
+            let restOK = myProfile.last_shift === "long_ago" && myProfile.sickleave !== "under6m";
             document.getElementById("profile-summary").innerHTML = `
                 <strong>Din profil:</strong><br>
                 ${roleIcon} ${myProfile.role}<br>
-                📊 ${myProfile.contract}% stilling<br>
-                ${statusEmoji} ${myProfile.status}${myProfile.has_shift ? '<br>⚠️ Har allerede vakt' : ''}
+                ${statusEmoji} ${myProfile.status}<br>
+                ${restOK ? "✅" : "⚠️"} Hvile/sykemelding OK${myProfile.has_shift ? '<br>❌ Har allerede vakt' : ''}
             `;
 
             // Start polling for status
@@ -480,20 +490,34 @@ def api_accept():
     # DYNAMISK VALIDERING basert på profilen deltakeren valgte
     errors = []
 
-    # 1. Sjekk kompetanse
-    if profile.get("role") != "Intensivsykepleier":
-        errors.append("Feil kompetanse - krever Intensivsykepleier")
+    # 1. Sjekk kompetanse (kun Intensivsykepleier får automatisk vakt)
+    role = profile.get("role")
+    if role == "Intensivsykepleier":
+        pass  # OK
+    elif role == "Sykepleier":
+        errors.append("Sykepleier må godkjennes av vakthavende - ikke autorisert for intensiv")
+    elif role == "Vernepleier":
+        errors.append("Vernepleier har feil spesialisering (krever intensivkompetanse)")
+    else:
+        errors.append("Mangler fagautorisasjon for intensivavdeling")
 
     # 2. Sjekk status (ferie, permisjon, syk)
     if profile.get("status") in ["FERIE", "PERMISJON", "SYKT BARN", "SYK"]:
         status_names = {"FERIE": "på ferie", "PERMISJON": "i permisjon", "SYKT BARN": "hjemme med sykt barn", "SYK": "syk"}
         errors.append(f"Du er {status_names.get(profile.get('status'), 'utilgjengelig')}")
 
-    # 3. Sjekk stillingsprosent (100% = kan ikke ta overtid)
-    if profile.get("contract", 0) >= 100:
-        errors.append("Overstiger 100% stilling (Arbeidsmiljøloven)")
+    # 3. Sjekk hviletid (11-timers regelen)
+    last_shift = profile.get("last_shift")
+    if last_shift == "recent":
+        errors.append("Kun 6 timer siden forrige vakt (brudd på 11-timers hvileregel)")
+    elif last_shift == "yesterday":
+        errors.append("9 timer siden forrige vakt (brudd på 11-timers hvileregel)")
 
-    # 4. Sjekk om har vakt allerede
+    # 4. Sjekk sykemeldingshistorikk (AML: ikke overtid etter nylig sykemelding)
+    if profile.get("sickleave") == "under6m":
+        errors.append("Sykemeldt siste 6 måneder (kan ikke ta overtid etter AML)")
+
+    # 5. Sjekk om har vakt allerede
     if profile.get("has_shift", False):
         errors.append("Har allerede vakt i dag (kollisjon)")
 
