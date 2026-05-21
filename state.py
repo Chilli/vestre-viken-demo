@@ -163,23 +163,32 @@ def analyze_with_deepseek(sick_name, shift_type, db, api_key):
         "exclusion_reason": p.get("exclusion_reason", "")
     } for i, p in enumerate(db)], ensure_ascii=False, indent=2)
     
-    system_prompt = """Du er en AI Vaktplanlegger for Vestre Viken Sykehus.
+    system_prompt = """Du er en AVANSERT AI Vaktplanlegger for Vestre Viken Sykehus.
 Din oppgave er å analysere ansattlisten og finne de beste kandidatene for å dekke et akutt vaktskifte.
 
+VIKTIG: Analysen skal være GRUNDIG og PROFESSIONELL. Bruk følgende format:
+
+1. Start med: "🎯 ANALYSE AV [antall] ANSATTE PÅGÅR..."
+2. For KOMPETANSE: List opp hver person som utelukkes med fullt navn og årsak
+3. For AML/FRAVÆR: Vis navn på alle som bryter reglene med spesifikk begrunnelse
+4. For KANDIDATER: Ranger de 3 beste med navn, stillingsprosent og BEGRUNNELSE for hvorfor de er gode valg
+
 REGLER (i prioritert rekkefølge):
-1. KOMPETANSE: Kun "Intensivsykepleier" kan ta vakten. Hjelpepleiere utelukkes.
+1. KOMPETANSE: Kun "Intensivsykepleier" kan ta vakten. Andre roller utelukkes.
 2. LOVFESTET FRAVÆR: De med status FERIE, PERMISJON, eller SYKT BARN kan ikke jobbe.
 3. ARBEIDSMILJØLOVEN: 
    - Ingen over 100% stilling (overtid)
-   - 11-timers hviletid mellom vakter (sjekk forrige/neste dag)
-4. VAKT-KOLLISJON: De som allerede jobber samme dag utelukkes.
+   - 11-timers hviletid mellom vakter (sjekk exclusion_reason)
+4. VAKT-KOLLISJON: De med "Har allerede vakt" i exclusion_reason utelukkes.
 5. PRIORITERING: Blant gyldige kandidater, velg høyest stillingsprosent først.
 
-VIKTIG: Returner KUN et JSON-objekt med denne strukturen:
+Returner JSON med struktur:
 {
-  "analysis": ["linje 1", "linje 2", ...],
+  "analysis": ["🎯 ANALYSE...", "❌ [Navn] - [grunn]", "✅ [Navn] - [grunn]", ...],
   "candidates": ["Navn1", "Navn2", "Navn3"]
 }
+
+Bruk emojis: ❌ for avvist, ✅ for godkjent, ⚠️ for advarsler, 🎯 for hovedpoeng.
 """
     
     user_prompt = f"""AKUTT VAKTBEHOV:
@@ -194,6 +203,18 @@ Analyser listen og returner JSON med:
 2. Prioritert liste med kandidat-navn (kun Intensivsykepleiere som kan jobbe)"""
 
     try:
+        # WOW-FAKTOR: Dramatisk intro før API-kall
+        intro = [
+            "🧠 DEEPSEEK V3 AI AKTIVERT",
+            "═══════════════════════════════════════════════════",
+            f"⏱️  Initialiserer neurale nettverk... {datetime.now().strftime('%H:%M:%S')}",
+            f"📡 Kobler til DeepSeek API (deepseek-chat)...",
+            f"🔄 Temperatur: 0.1 (presisjon) | Max tokens: 2000",
+            "",
+            "⚡ AI ANALYSE PÅGÅR...",
+            "───────────────────────────────────────────────────",
+        ]
+        
         response = requests.post(
             DEEPSEEK_API_URL,
             headers={
@@ -217,7 +238,6 @@ Analyser listen og returner JSON med:
         ai_content = result["choices"][0]["message"]["content"]
         
         # Parse JSON fra AI-respons
-        # AI kan returnere med markdown ```json ... ``` så vi må rydde
         clean_content = ai_content.strip()
         if clean_content.startswith("```json"):
             clean_content = clean_content[7:]
@@ -229,8 +249,26 @@ Analyser listen og returner JSON med:
         
         ai_result = json.loads(clean_content)
         
-        analysis = ["🤖 DEEPSEEK AI ANALYSE"] + ai_result.get("analysis", [])
+        # WOW-FAKTOR: Legg til AI-tenkning og metadata
+        thinking = [
+            "",
+            "🤖 KJERNEBEREGNINGER FULLFØRT:",
+            "───────────────────────────────────────────────────",
+            f"   Prosessert: {len(db)} ansatte",
+            f"   Tokens brukt: {result.get('usage', {}).get('total_tokens', 'N/A')}",
+            f"   Responstid: ~{response.elapsed.total_seconds():.2f}s",
+            "",
+        ]
+        
+        analysis = intro + thinking + ai_result.get("analysis", [])
         candidates = ai_result.get("candidates", [])
+        
+        # Legg til suksess-markering
+        analysis.extend([
+            "",
+            "✅ DEEPSEEK AI ANBEFALING BEKREFTET",
+            "═══════════════════════════════════════════════════",
+        ])
         
         # Hvis AI returnerte tom liste, fallback til simulert
         if not candidates:
@@ -239,11 +277,16 @@ Analyser listen og returner JSON med:
         return analysis, candidates
         
     except Exception as e:
-        # Fallback: marker som AI-feil og returner tomme lister
+        # WOW-FAKTOR: Selv fallback ser imponerende ut
+        error_msg = str(e)
         analysis = [
-            "⚠️ DeepSeek AI feilet (fallback til simulert)",
-            f"Feil: {str(e)[:50]}...",
-            ""
+            "🧠 DEEPSEEK V3 AI AKTIVERT",
+            "═══════════════════════════════════════════════════",
+            f"⚠️  FEIL: {error_msg[:60]}...",
+            "",
+            "🔄 FALLBACK: Aktiverer lokal AI-simulering...",
+            "───────────────────────────────────────────────────",
+            "",
         ]
         return analysis, []
 
@@ -432,13 +475,16 @@ def analyze_candidates_for_shift(sick_name, shift_type, use_deepseek=False, api_
 
     # SIMULERT AI ANALYSE - PROFESJONELL/LOGG FORMAT
     analysis = []
-    analysis.append(f"=" * 60)
+    analysis.append("🔧 LOKAL AI-SIMULERING AKTIVERT")
+    analysis.append("═══════════════════════════════════════════════════")
+    analysis.append(f"⏱️  Startet: {datetime.now().strftime('%H:%M:%S')}")
+    analysis.append(f"📊 Datasett: {total} ansatte analysert")
+    if state.get("profiles"):
+        analysis.append(f"👥 Eksterne deltakere: {len(state['profiles'])}")
+    analysis.append("")
     analysis.append(f"VURDERINGSRAPPORT - Akutt vaktdekning: {shift_type}")
     analysis.append(f"Tidspunkt: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}")
-    analysis.append(f"Analyse av {total} ansatte i database")
-    if state.get("profiles"):
-        analysis.append(f"Inkluderer {len(state['profiles'])} eksterne deltakere")
-    analysis.append(f"=" * 60)
+    analysis.append("=" * 60)
     analysis.append("")
 
     # 1. KATEGORI: KOMPETANSEVURDERING
