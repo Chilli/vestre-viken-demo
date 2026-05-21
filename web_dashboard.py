@@ -198,7 +198,7 @@ def render_live_dashboard():
     
     # Bygg headers (Mandag Dato, osv)
     days = ["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag"]
-    headers = [f"{day}\\n{date}" for day, date in zip(days, state["turnus"]["dates"])]
+    headers = [f"{day}<br>{date}" for day, date in zip(days, state["turnus"]["dates"])]
     
     # Bygg rader
     rows = []

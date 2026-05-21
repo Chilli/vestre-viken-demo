@@ -409,10 +409,8 @@ def analyze_candidates_for_shift(sick_name, shift_type, use_deepseek=False, api_
     db = build_database_from_profiles()
     total = len(db)
 
-    # Oppdater state med ny database
-    state["turnus"]["rows"] = db
-
-    # Reset escalation-state
+    # VI ENDRER IKKE TURNUS HER - bare leser
+    # Reset escalation-state for denne analysen
     state["shift_request"]["escalation_triggered"] = False
     state["shift_request"]["agency_worker"] = None
 
@@ -619,8 +617,13 @@ def mark_sick(name):
     
     for row in state["turnus"]["rows"]:
         if row["name"] == name:
-            orig = row["shifts"][day_idx]
-            row["shifts"][day_idx] = f"❌ SYK ({orig})"
+            # Sjekk at shifts finnes og har riktig lengde
+            shifts = row.get("shifts", [])
+            if len(shifts) > day_idx:
+                orig = shifts[day_idx]
+                # Bare marker hvis ikke allerede syk
+                if "SYK" not in str(orig):
+                    row["shifts"][day_idx] = f"❌ SYK ({orig})"
             break
 
 def mark_replacement(sick_name, vikar_name):
