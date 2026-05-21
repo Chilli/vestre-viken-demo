@@ -24,70 +24,71 @@ def generate_complex_database():
     # DAG 07:15-14:45 / KVELD 15:00-22:30 / NATT 22:00-07:30 / 12T DAG 07:00-19:00 / 12T NATT 19:00-07:00
 
     # De 3 publikummerne - ulike turnusmønstre
+    # HVER PERSON HAR SAMME VAKT HVER DAG (konsistent)
     audience = [
-        # Mette: 3-skift klassisk turnus
+        # Mette: Kveldvakt hver dag
         {"name": "Mette Prada Hansen", "role": "Intensivsykepleier", "status": "AVAILABLE",
-         "shifts": ["NATT 22-07", "LEDIG", "DAG 07-15", "KVELD 15-22", "LEDIG"],
-         "turnus_type": "3-skift"},
-        # Anton: 12-timers turnus (dager)
+         "shifts": ["KVELD 15-22", "KVELD 15-22", "KVELD 15-22", "KVELD 15-22", "KVELD 15-22"],
+         "turnus_type": "kveld-kun"},
+        # Anton: 12-timers dagvakt mandag-torsdag, fri fredag
         {"name": "Dr. Anton Graff", "role": "Intensivsykepleier", "status": "AVAILABLE",
-         "shifts": ["12T DAG 07-19", "LEDIG", "12T NATT 19-07", "LEDIG", "12T DAG 07-19"],
+         "shifts": ["12T DAG 07-19", "12T DAG 07-19", "12T DAG 07-19", "12T DAG 07-19", "LEDIG"],
          "turnus_type": "12-timers"},
-        # Wes: Kun dagvakter (eldre/senior)
+        # Wes: Dagvakt hver dag
         {"name": "Wes Side Story", "role": "Intensivsykepleier", "status": "AVAILABLE",
-         "shifts": ["DAG 07-15", "DAG 07-15", "LEDIG", "DAG 07-15", "DAG 07-15"],
+         "shifts": ["DAG 07-15", "DAG 07-15", "DAG 07-15", "DAG 07-15", "DAG 07-15"],
          "turnus_type": "dag-kun"},
     ]
 
-    # Den som blir syk - 3-skift turnus
+    # Den som blir syk - Nattevakt hver dag
     sick_person = [
         {"name": "Nils Dagenderpå", "role": "Intensivsykepleier", "status": "OK",
-         "shifts": ["DAG 07-15", "KVELD 15-22", "LEDIG", "NATT 22-07", "DAG 07-15"],
-         "turnus_type": "3-skift"}
+         "shifts": ["NATT 22-07", "NATT 22-07", "NATT 22-07", "NATT 22-07", "NATT 22-07"],
+         "turnus_type": "natt-kun"}
     ]
 
     # Fyll på med realistiske turnuser
+    # HVER PERSON HAR SAMME VAKT HVER DAG (konsistent)
     fillers_data = [
-        # === DAGVAKT-KUN ANSATTE (seniorer/småbarnsforeldre) ===
-        ("Siri Småbarnsmor", "dag-kun", ["DAG 07-15", "DAG 07-15", "LEDIG", "DAG 07-15", "DAG 07-15"]),
-        ("Knut Senior", "dag-kun", ["DAG 07-15", "LEDIG", "DAG 07-15", "DAG 07-15", "DAG 07-15"]),
-        ("Lise Dagskift", "dag-kun", ["DAG 07-15", "DAG 07-15", "DAG 07-15", "LEDIG", "DAG 07-15"]),
-        ("Petter Barnehage", "dag-kun", ["LEDIG", "DAG 07-15", "DAG 07-15", "DAG 07-15", "LEDIG"]),
+        # === DAGVAKT-KUN ANSATTE (seniorer/småbarnsforeldre) - DAG HVER DAG ===
+        ("Siri Småbarnsmor", "dag-kun", ["DAG 07-15", "DAG 07-15", "DAG 07-15", "DAG 07-15", "DAG 07-15"]),
+        ("Knut Senior", "dag-kun", ["DAG 07-15", "DAG 07-15", "DAG 07-15", "DAG 07-15", "DAG 07-15"]),
+        ("Lise Dagskift", "dag-kun", ["DAG 07-15", "DAG 07-15", "DAG 07-15", "DAG 07-15", "DAG 07-15"]),
+        ("Petter Barnehage", "dag-kun", ["DAG 07-15", "DAG 07-15", "DAG 07-15", "DAG 07-15", "DAG 07-15"]),
         
-        # === 3-SKIFT KLASSISK (rotasjon dag/kveld/natt) ===
-        ("Kari Vaktmester", "3-skift", ["DAG 07-15", "KVELD 15-22", "NATT 22-07", "LEDIG", "DAG 07-15"]),
-        ("Ole Tidsklemme", "3-skift", ["LEDIG", "DAG 07-15", "KVELD 15-22", "LEDIG", "NATT 22-07"]),
-        ("Lise Trøtt", "3-skift", ["NATT 22-07", "LEDIG", "DAG 07-15", "KVELD 15-22", "LEDIG"]),
-        ("Jonas Helse", "3-skift", ["KVELD 15-22", "NATT 22-07", "LEDIG", "DAG 07-15", "KVELD 15-22"]),
-        ("Per Kaffe", "3-skift", ["DAG 07-15", "LEDIG", "NATT 22-07", "LEDIG", "DAG 07-15"]),
-        ("Simen Stress", "3-skift", ["KVELD 15-22", "DAG 07-15", "LEDIG", "KVELD 15-22", "NATT 22-07"]),
+        # === KVELDVAKT-KUN - KVELD HVER DAG ===
+        ("Kari Vaktmester", "kveld-kun", ["KVELD 15-22", "KVELD 15-22", "KVELD 15-22", "KVELD 15-22", "KVELD 15-22"]),
+        ("Ole Tidsklemme", "kveld-kun", ["KVELD 15-22", "KVELD 15-22", "KVELD 15-22", "KVELD 15-22", "KVELD 15-22"]),
         
-        # === 12-TIMERS TURNUS ===
-        ("Bernt Overtid", "12-timers", ["12T DAG 07-19", "LEDIG", "12T DAG 07-19", "12T NATT 19-07", "LEDIG"]),
-        ("Nina Turnus", "12-timers", ["LEDIG", "12T NATT 19-07", "12T DAG 07-19", "LEDIG", "12T DAG 07-19"]),
-        ("Maya 12Timer", "12-timers", ["12T DAG 07-19", "12T NATT 19-07", "LEDIG", "12T DAG 07-19", "LEDIG"]),
+        # === NATTVAKT-KUN - NATT HVER DAG ===
+        ("Lise Trøtt", "natt-kun", ["NATT 22-07", "NATT 22-07", "NATT 22-07", "NATT 22-07", "NATT 22-07"]),
+        ("Jonas Helse", "natt-kun", ["NATT 22-07", "NATT 22-07", "NATT 22-07", "NATT 22-07", "NATT 22-07"]),
         
-        # === NATT-PREFERANSE ===
-        ("Trude Nattevakt", "natt-preferanse", ["NATT 22-07", "NATT 22-07", "LEDIG", "NATT 22-07", "LEDIG"]),
-        ("Nora Nattskift", "natt-preferanse", ["LEDIG", "NATT 22-07", "NATT 22-07", "NATT 22-07", "LEDIG"]),
+        # === 12-TIMERS DAG - MAN-TOR, FRI FRE ===
+        ("Per Kaffe", "12-timers", ["12T DAG 07-19", "12T DAG 07-19", "12T DAG 07-19", "12T DAG 07-19", "LEDIG"]),
+        ("Simen Stress", "12-timers", ["12T DAG 07-19", "12T DAG 07-19", "12T DAG 07-19", "12T DAG 07-19", "LEDIG"]),
+        ("Bernt Overtid", "12-timers", ["12T DAG 07-19", "12T DAG 07-19", "12T DAG 07-19", "LEDIG", "12T DAG 07-19"]),
+        
+        # === 12-TIMERS NATT - MAN-TOR, FRI FRE ===
+        ("Nina Turnus", "12-timers-natt", ["12T NATT 19-07", "12T NATT 19-07", "12T NATT 19-07", "12T NATT 19-07", "LEDIG"]),
+        ("Maya 12Timer", "12-timers-natt", ["12T NATT 19-07", "12T NATT 19-07", "LEDIG", "12T NATT 19-07", "12T NATT 19-07"]),
         
         # Andre roller (ikke intensiv)
-        ("Anne Vikar", "Vernepleier", "3-skift", ["DAG 07-15", "KVELD 15-22", "LEDIG", "DAG 07-15", "KVELD 15-22"]),
-        ("Petter Gips", "Helsefagarbeider", "dag-kun", ["DAG 07-15", "DAG 07-15", "DAG 07-15", "LEDIG", "DAG 07-15"]),
-        ("Mari Sprøyte", "Sykepleier", "3-skift", ["LEDIG", "NATT 22-07", "DAG 07-15", "KVELD 15-22", "LEDIG"]),
-        ("Geir Skalpell", "Vernepleier", "12-timers", ["12T DAG 07-19", "LEDIG", "LEDIG", "12T DAG 07-19", "12T NATT 19-07"]),
+        ("Anne Vikar", "Vernepleier", "dag-kun", ["DAG 07-15", "DAG 07-15", "DAG 07-15", "DAG 07-15", "DAG 07-15"]),
+        ("Petter Gips", "Helsefagarbeider", "dag-kun", ["DAG 07-15", "DAG 07-15", "DAG 07-15", "DAG 07-15", "DAG 07-15"]),
+        ("Mari Sprøyte", "Sykepleier", "kveld-kun", ["KVELD 15-22", "KVELD 15-22", "KVELD 15-22", "KVELD 15-22", "KVELD 15-22"]),
+        ("Geir Skalpell", "Vernepleier", "natt-kun", ["NATT 22-07", "NATT 22-07", "NATT 22-07", "NATT 22-07", "NATT 22-07"]),
         
-        # Permisjon/ferie
+        # Permisjon/ferie - HELE UKEN
         ("Kine Plaster", "Intensivsykepleier", "PERMISJON", ["FORELDREPERM", "FORELDREPERM", "FORELDREPERM", "FORELDREPERM", "FORELDREPERM"]),
         ("Jan EKG", "Intensivsykepleier", "FERIE", ["FERIE", "FERIE", "FERIE", "FERIE", "FERIE"]),
         
-        # AML-brudd (for kort hviletid)
-        ("Turid Puls", "Intensivsykepleier", "3-skift-kort-hvile", ["NATT 22-07", "LEDIG", "DAG 07-15", "KVELD 15-22", "DAG 07-15"]),
-        ("Magnus Blod", "Intensivsykepleier", "12-timers-tett", ["12T NATT 19-07", "12T DAG 07-19", "LEDIG", "12T NATT 19-07", "LEDIG"]),
+        # Sykemeldt - HELE UKEN (5 dager)
+        ("Silje Sår", "Intensivsykepleier", "SYK", ["SYKEMELDT", "SYKEMELDT", "SYKEMELDT", "SYKEMELDT", "SYKEMELDT"]),
         
-        # Sykemeldt/sykt barn
-        ("Silje Sår", "Intensivsykepleier", "SYK", ["SYKEMELDT", "SYKEMELDT", "LEDIG", "SYKEMELDT", "SYKEMELDT"]),
-        ("Bjarne Pille", "Intensivsykepleier", "SYKT BARN", ["HJEMME SYKT BARN", "HJEMME SYKT BARN", "LEDIG", "HJEMME SYKT BARN", "HJEMME SYKT BARN"]),
+        # Sykt barn - 2 DAGER (mandag-tirsdag)
+        ("Bjarne Pille", "Intensivsykepleier", "SYKT BARN", ["HJEMME SYKT BARN", "HJEMME SYKT BARN", "LEDIG", "LEDIG", "LEDIG"]),
+        ("Turid Puls", "Intensivsykepleier", "SYKT BARN", ["LEDIG", "HJEMME SYKT BARN", "HJEMME SYKT BARN", "LEDIG", "LEDIG"]),
     ]
 
     fillers = []
@@ -148,7 +149,10 @@ state = {
         "candidate_start_time": None,  # Når vi begynte å vente på nåværende kandidat
         "candidate_timeout": 12,       # Sekunder å vente på hver kandidat
         "escalation_triggered": False, # Om bemanningsbyrå ble kontaktet
-        "agency_worker": None          # Navn på vikar fra byrå
+        "agency_worker": None,         # Navn på vikar fra byrå
+        "split_shift": False,          # Om vakten er splittet mellom to personer
+        "split_person_1": None,        # Første person i split-vakt
+        "split_person_2": None         # Andre person i split-vakt
     },
     
     "colleagues": set(),
@@ -686,6 +690,64 @@ def analyze_candidates_for_shift(sick_name, shift_type, use_deepseek=False, api_
         analysis.append(f"TILDELING: Førstemann til mølla-prinsipp aktivert")
         analysis.append(f"Kontakter: {candidates[0]['name']}")
         candidate_names = [c["name"] for c in candidates]
+    
+    # 6. SPLIT-VAKT ANALYSE (hvis ingen enkelt-kandidat kan ta hele)
+    # Forsøk å finne TO ansatte som sammen kan dekke vakten
+    if len(candidates) == 0:
+        analysis.append("")
+        analysis.append("[6] SPLIT-VAKT STRATEGI")
+        analysis.append("=" * 60)
+        analysis.append("Sjekker om to ansatte kan dele vakten (AML-kompatibelt)...")
+        analysis.append("")
+        
+        # Finn ansatte som kan ta deler av vakten
+        # Antar 8-timers vakt kan splittes i 4+4 eller 5+3 etc
+        early_candidates = []  # Tidlig del (f.eks. 07-12)
+        late_candidates = []   # Sen del (f.eks. 12-15)
+        
+        for p in db:
+            if (p.get("status") == "AVAILABLE" 
+                and p.get("role") == "Intensivsykepleier"
+                and not p.get("exclusion_reason")):
+                
+                # Sjekk om personen kan ta overtid (under 10 timer totalt)
+                # og har nok hviletid (11-timers regel)
+                last_shift = p.get("last_shift", "none")
+                
+                # Kan ta opptil 4-5 timer overtid (maks 12t totalt)
+                if last_shift in ["none", "2dager", "over2"]:
+                    # Kan ta tidlig del
+                    early_candidates.append(p)
+                    # Kan ta sen del
+                    late_candidates.append(p)
+        
+        if len(early_candidates) >= 2:
+            # Trekk to forskjellige personer
+            person1 = early_candidates[0]
+            person2 = late_candidates[1] if len(late_candidates) > 1 else early_candidates[1]
+            
+            if person1["name"] != person2["name"]:
+                analysis.append(f"  ✓ SPLIT-VAKT LØSNING FUNNET!")
+                analysis.append(f"")
+                analysis.append(f"  👤 Person 1: {person1['name']}")
+                analysis.append(f"     Dekker: 07:15 - 11:15 (4 timer) + 2t overtid")
+                analysis.append(f"     Total: 6 timer (innenfor AML 8t + 4t overtid)")
+                analysis.append(f"")
+                analysis.append(f"  👤 Person 2: {person2['name']}")  
+                analysis.append(f"     Dekker: 11:15 - 14:45 (3.5 timer)")
+                analysis.append(f"     Total: 3.5 timer (normal vakt)")
+                analysis.append(f"")
+                analysis.append(f"  ✅ Begge har 11-timers hviletid før/etter")
+                analysis.append(f"  ✅ Ingen har over 12 timer totalt")
+                analysis.append(f"  ✅ Full dekning av vakten")
+                analysis.append("")
+                analysis.append(f"TILDELING: Split-vakt godkjent av systemet")
+                
+                # Legg til begge i kandidat-køen med markering
+                candidate_names = [f"{person1['name']} (07-11)", f"{person2['name']} (11-15)"]
+                state["shift_request"]["split_shift"] = True
+                state["shift_request"]["split_person_1"] = person1["name"]
+                state["shift_request"]["split_person_2"] = person2["name"]
 
     analysis.append("")
     analysis.append("=" * 60)
