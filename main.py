@@ -12,11 +12,14 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from state import state, mark_sick, mark_replacement, reset_turnus, generate_reasoning_report
+from state import state, mark_sick, mark_replacement, reset_turnus, generate_reasoning_report, load_state, save_state
 from web_dashboard import render_live_dashboard
 
 app = Flask(__name__)
 PORT = int(os.environ.get("PORT", 5000))
+
+# Last inn tidligere state hvis den finnes
+load_state()
 
 # ============================================================
 # EVENT STREAM (SSE) FOR SANNTIDSOPPDATERINGER PÅ MOBIL

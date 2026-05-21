@@ -808,6 +808,14 @@ def reset_turnus():
     state["shift_request"]["agency_worker"] = None
     state["profiles"] = {}  # Fjern deltaker-profiler
     state["colleagues"] = set()
+    
+    # Slett state-filen for å unngå at gammel data lastes inn igjen
+    try:
+        if os.path.exists(STATE_FILE):
+            os.remove(STATE_FILE)
+            print(f"🗑️  State file cleared: {STATE_FILE}")
+    except Exception as e:
+        print(f"Could not clear state file: {e}")
 
 
 def generate_reasoning_report():
