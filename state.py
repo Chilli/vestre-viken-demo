@@ -131,7 +131,9 @@ state = {
         "current_candidate_index": 0,  # Hvilken kandidat vi ringer nå (0, 1, 2)
         "candidate_queue": [],         # Den prioriterte rekkefølgen
         "candidate_start_time": None,  # Når vi begynte å vente på nåværende kandidat
-        "candidate_timeout": 12        # Sekunder å vente på hver kandidat
+        "candidate_timeout": 12,       # Sekunder å vente på hver kandidat
+        "escalation_triggered": False, # Om bemanningsbyrå ble kontaktet
+        "agency_worker": None          # Navn på vikar fra byrå
     },
     
     "colleagues": set(),
@@ -533,7 +535,7 @@ def mark_replacement(sick_name, vikar_name):
             break
             
     if not any(r["name"] == vikar_name for r in state["turnus"]["rows"]):
-        new_row = {"name": vikar_name, "role": "Intensivsykepleier", "shifts": ["FRI", "FRI", "FRI", "FRI", "FRI"]}
+        new_row = {"name": vikar_name, "role": "Intensivsykepleier", "shifts": ["LEDIG", "LEDIG", "LEDIG", "LEDIG", "LEDIG"]}
         new_row["shifts"][day_idx] = f"✅ VIKAR for {sick_name}"
         state["turnus"]["rows"].insert(1, new_row)
         
