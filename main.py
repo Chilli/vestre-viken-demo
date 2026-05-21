@@ -16,7 +16,7 @@ from state import state, mark_sick, mark_replacement, reset_turnus, generate_rea
 from web_dashboard import render_live_dashboard
 
 app = Flask(__name__)
-PORT = 5000
+PORT = int(os.environ.get("PORT", 5000))
 
 # ============================================================
 # EVENT STREAM (SSE) FOR SANNTIDSOPPDATERINGER PÅ MOBIL
